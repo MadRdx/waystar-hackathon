@@ -28,6 +28,13 @@ class TransactionStatus(str, Enum):
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
     PENDING = "PENDING"
+    REFUNDED = "REFUNDED"
+
+
+class ApprovalStatus(str, Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
 
 
 class UserRole(str, Enum):
@@ -175,6 +182,17 @@ class PaymentPagePayload(BaseModel):
         return self
 
 
+class ApprovalDecisionPayload(BaseModel):
+    action: ApprovalStatus
+    note: str | None = Field(default=None, max_length=240)
+
+    @model_validator(mode="after")
+    def validate_action(self) -> "ApprovalDecisionPayload":
+        if self.action == ApprovalStatus.PENDING:
+            raise ValueError("Approval decision must be APPROVED or REJECTED.")
+        return self
+
+
 class PaymentSubmissionPayload(BaseModel):
     payer_name: str = Field(min_length=2, max_length=80)
     payer_email: EmailStr
@@ -192,9 +210,17 @@ class PaymentSubmissionPayload(BaseModel):
     remember_payer: bool = False
     coupon_code: str | None = Field(default=None, max_length=32)
     custom_field_values: dict[str, Any] = Field(default_factory=dict)
+    stripe_payment_intent_id: str | None = Field(default=None, max_length=128)
 
 
 class PaymentResultPayload(BaseModel):
     public_id: str
     status: TransactionStatus
     message: str
+
+
+class StripeIntentPayload(BaseModel):
+    amount_cents: int | None = None
+    coupon_code: str | None = Field(default=None, max_length=32)
+    payer_name: str = Field(min_length=2, max_length=80)
+    payer_email: EmailStr

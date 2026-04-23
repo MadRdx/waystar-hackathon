@@ -5,10 +5,13 @@ import { useEffect, useState } from "react";
 import clsx from "clsx";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { CardElement, Elements, useElements, useStripe } from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
 
 import {
   clearRememberedPayer,
   clearStoredSession,
+  createStripePaymentIntent,
   getPublicPaymentPage,
   getRememberedPayer,
   getStoredSession,
@@ -19,7 +22,12 @@ import { formatCurrency } from "@/lib/format";
 import { expiryIsValid, luhnIsValid, routingNumberIsValid } from "@/lib/validation";
 import type { CustomerUser, PaymentMethod, PaymentPage } from "@/lib/types";
 
-function detectWalletProvider() {
+const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
+const stripePromise = STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(STRIPE_PUBLISHABLE_KEY)
+  : Promise.resolve(null);
+
+function detectWalletProvider(): WalletDetails {
   if (typeof window === "undefined") {
     return { label: "Google Pay", provider: "google_pay" };
   }
@@ -41,6 +49,52 @@ const walletOptions = [
   { value: "paypal", label: "PayPal" },
   { value: "venmo", label: "Venmo" },
 ] as const;
+
+type WalletProviderValue = (typeof walletOptions)[number]["value"];
+type WalletDetails = {
+  label: string;
+  provider: WalletProviderValue;
+};
+type WalletAvailability = Record<WalletProviderValue, boolean>;
+
+function detectCardBrand(cardNumber: string) {
+  const digits = cardNumber.replace(/\D/g, "");
+  if (!digits) {
+    return null;
+  }
+  if (digits.startsWith("4")) {
+    return "Visa";
+  }
+  const two = Number(digits.slice(0, 2));
+  const four = Number(digits.slice(0, 4));
+  if ((two >= 51 && two <= 55) || (four >= 2221 && four <= 2720)) {
+    return "Mastercard";
+  }
+  if (digits.startsWith("34") || digits.startsWith("37")) {
+    return "American Express";
+  }
+  return null;
+}
+
+function getWalletAvailability(): WalletAvailability {
+  if (typeof window === "undefined") {
+    return { apple_pay: false, google_pay: true, paypal: true, venmo: false };
+  }
+  return {
+    apple_pay: "ApplePaySession" in window,
+    google_pay: "PaymentRequest" in window,
+    paypal: true,
+    venmo: /android|iphone|ipad|ipod/i.test(window.navigator.userAgent),
+  };
+}
+
+const DEFAULT_WALLET_DETAILS: WalletDetails = { label: "Google Pay", provider: "google_pay" };
+const DEFAULT_WALLET_AVAILABILITY: WalletAvailability = {
+  apple_pay: false,
+  google_pay: true,
+  paypal: true,
+  venmo: false,
+};
 
 type FormState = {
   payer_name: string;
@@ -80,9 +134,11 @@ function createInitialFormState(): FormState {
   };
 }
 
-export function PublicPaymentPage({ slug }: { slug: string }) {
+function PublicPaymentPageContent({ slug }: { slug: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const stripe = useStripe();
+  const elements = useElements();
   const isEmbedded = searchParams.get("embed") === "1";
 
   const [page, setPage] = useState<PaymentPage | null>(null);
@@ -96,6 +152,15 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const walletDetails = detectWalletProvider();
+  const [cardElementError, setCardElementError] = useState<string | null>(null);
+  const [walletDetails, setWalletDetails] = useState(DEFAULT_WALLET_DETAILS);
+  const [walletAvailability, setWalletAvailability] = useState(DEFAULT_WALLET_AVAILABILITY);
+  const stripeCardEnabled = Boolean(STRIPE_PUBLISHABLE_KEY);
+
+  useEffect(() => {
+    setWalletDetails(detectWalletProvider());
+    setWalletAvailability(getWalletAvailability());
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -184,6 +249,7 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
 
   const cardNumberLooksValid =
     form.card_number.replace(/\D/g, "").length < 13 || luhnIsValid(form.card_number);
+  const cardBrand = detectCardBrand(form.card_number);
   const achRoutingLooksValid =
     form.ach_routing_number.replace(/\D/g, "").length < 9 ||
     routingNumberIsValid(form.ach_routing_number);
@@ -256,16 +322,61 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
     setError(null);
 
     try {
+      let amountCents =
+        currentPage.amount_mode === "FIXED"
+          ? currentPage.fixed_amount_cents ?? 0
+          : Math.round(Number(form.amount_input || "0") * 100);
+
+      let stripePaymentIntentId: string | undefined;
+      if (paymentMethod === "CARD" && stripeCardEnabled) {
+        if (!stripe || !elements) {
+          throw new Error("Stripe has not loaded yet. Please wait and try again.");
+        }
+        const cardElement = elements.getElement(CardElement);
+        if (!cardElement) {
+          throw new Error("Card input is not ready yet.");
+        }
+
+        const intent = await createStripePaymentIntent(slug, {
+          payer_name: form.payer_name,
+          payer_email: form.payer_email,
+          amount_cents: amountCents,
+          coupon_code: form.coupon_code || undefined,
+        });
+
+        amountCents = intent.item.amount_cents;
+        const confirmation = await stripe.confirmCardPayment(intent.item.client_secret, {
+          payment_method: {
+            card: cardElement,
+            billing_details: {
+              name: form.payer_name,
+              email: form.payer_email,
+              address: { postal_code: form.billing_zip || undefined },
+            },
+          },
+        });
+
+        if (confirmation.error) {
+          throw new Error(confirmation.error.message || "Stripe could not confirm the card payment.");
+        }
+        stripePaymentIntentId = confirmation.paymentIntent?.id;
+        if (!stripePaymentIntentId) {
+          throw new Error("Stripe confirmation did not return a payment intent.");
+        }
+      }
+
       const response = await submitPayment(slug, {
         payer_name: form.payer_name,
         payer_email: form.payer_email,
         amount_cents: amountCents,
         payment_method: paymentMethod,
         billing_zip: paymentMethod === "CARD" ? form.billing_zip : undefined,
-        card_number: paymentMethod === "CARD" ? form.card_number : undefined,
-        expiry_month: paymentMethod === "CARD" ? Number(form.expiry_month) : undefined,
-        expiry_year: paymentMethod === "CARD" ? Number(form.expiry_year) : undefined,
-        cvv: paymentMethod === "CARD" ? form.cvv : undefined,
+        card_number: paymentMethod === "CARD" && !stripeCardEnabled ? form.card_number : undefined,
+        expiry_month:
+          paymentMethod === "CARD" && !stripeCardEnabled ? Number(form.expiry_month) : undefined,
+        expiry_year:
+          paymentMethod === "CARD" && !stripeCardEnabled ? Number(form.expiry_year) : undefined,
+        cvv: paymentMethod === "CARD" && !stripeCardEnabled ? form.cvv : undefined,
         wallet_provider: paymentMethod === "WALLET" ? form.wallet_provider : undefined,
         ach_routing_number:
           paymentMethod === "ACH" ? form.ach_routing_number : undefined,
@@ -275,6 +386,7 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
         remember_payer: form.remember_payer,
         coupon_code: form.coupon_code || undefined,
         custom_field_values: form.custom_field_values,
+        stripe_payment_intent_id: stripePaymentIntentId,
       });
 
       if (form.remember_payer) {
@@ -737,6 +849,134 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                   {errors.billing_zip ? <p className="text-sm text-red-500 font-medium">{errors.billing_zip}</p> : null}
                 </div>
               </fieldset>
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                {stripeCardEnabled ? (
+                  <label className="space-y-2 md:col-span-2">
+                    <span className="text-sm font-medium text-foreground">Card Details</span>
+                    <div className="w-full rounded-2xl border border-line bg-white px-4 py-3">
+                      <CardElement
+                        options={{
+                          hidePostalCode: true,
+                          style: {
+                            base: { fontSize: "16px", color: "#1f2937" },
+                            invalid: { color: "#b91c1c" },
+                          },
+                        }}
+                        onChange={(event) => {
+                          setCardElementError(event.error?.message ?? null);
+                        }}
+                      />
+                    </div>
+                    <p className="text-sm leading-7 text-muted">
+                      Card input is securely handled by Stripe Elements.
+                    </p>
+                    {cardElementError ? (
+                      <p className="text-sm text-red-600">{cardElementError}</p>
+                    ) : null}
+                  </label>
+                ) : null}
+                {!stripeCardEnabled ? (
+                  <>
+                    <div className="space-y-2 md:col-span-2">
+                      <label htmlFor="card_number" className="text-sm font-medium text-foreground">Card Number</label>
+                      <input
+                        id="card_number"
+                        value={form.card_number}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, card_number: event.target.value }))
+                        }
+                        className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                        aria-describedby="card-help"
+                        aria-invalid={!cardNumberLooksValid}
+                      />
+                      <p
+                        id="card-help"
+                        className={clsx(
+                          "text-sm leading-7",
+                          cardNumberLooksValid ? "text-muted" : "text-red-600",
+                        )}
+                      >
+                        {cardNumberLooksValid ? (
+                          <>
+                            {cardBrand ? `${cardBrand} detected. ` : ""}
+                            Use test card 4242 4242 4242 4242 for a success flow.
+                          </>
+                        ) : (
+                          "The card number does not pass Luhn validation."
+                        )}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="expiry_month" className="text-sm font-medium text-foreground">Expiration Month</label>
+                      <input
+                        id="expiry_month"
+                        type="number"
+                        min="1"
+                        max="12"
+                        value={form.expiry_month}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, expiry_month: event.target.value }))
+                        }
+                        className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                        aria-invalid={!expiryLooksValid}
+                        aria-describedby={!expiryLooksValid ? "expiry-help" : undefined}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="expiry_year" className="text-sm font-medium text-foreground">Expiration Year</label>
+                      <input
+                        id="expiry_year"
+                        type="number"
+                        min="24"
+                        value={form.expiry_year}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, expiry_year: event.target.value }))
+                        }
+                        className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                        aria-invalid={!expiryLooksValid}
+                        aria-describedby={!expiryLooksValid ? "expiry-help" : undefined}
+                      />
+                      {!expiryLooksValid ? (
+                        <p id="expiry-help" className="text-sm text-red-600">Expiration must be in the future.</p>
+                      ) : null}
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="cvv" className="text-sm font-medium text-foreground">CVV</label>
+                      <input
+                        id="cvv"
+                        value={form.cvv}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, cvv: event.target.value }))
+                        }
+                        className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="billing_zip" className="text-sm font-medium text-foreground">Billing ZIP</label>
+                      <input
+                        id="billing_zip"
+                        value={form.billing_zip}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, billing_zip: event.target.value }))
+                        }
+                        className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    <label htmlFor="billing_zip" className="text-sm font-medium text-foreground">Billing ZIP</label>
+                    <input
+                      id="billing_zip"
+                      value={form.billing_zip}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, billing_zip: event.target.value }))
+                      }
+                      className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    />
+                  </div>
+                )}
+              </div>
             ) : null}
 
             {paymentMethod === "WALLET" ? (
@@ -756,7 +996,11 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                       className="w-full rounded-2xl border border-line bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                     >
                       {walletOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
+                        <option
+                          key={option.value}
+                          value={option.value}
+                          disabled={!walletAvailability[option.value]}
+                        >
                           {option.label}
                         </option>
                       ))}
@@ -768,6 +1012,13 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                     </p>
                     <p className="mt-2 text-sm leading-7 text-muted">
                       The sandbox wallet flow can simulate Apple Pay, Google Pay, PayPal, or Venmo selection without collecting card details directly in this form.
+                    </p>
+                    <p className="mt-2 text-sm leading-7 text-muted">
+                      Available on this device:{" "}
+                      {walletOptions
+                        .filter((option) => walletAvailability[option.value])
+                        .map((option) => option.label)
+                        .join(", ")}
                     </p>
                   </div>
                 </div>
@@ -799,6 +1050,15 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                   <p id="ach-routing-help" className={clsx("text-sm", (!achRoutingLooksValid || errors.ach_routing_number) ? "text-red-500 font-medium" : "hidden")}>
                     {errors.ach_routing_number || "Routing number checksum is invalid."}
                   </p>
+                      }))
+                    }
+                    className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    aria-describedby={!achRoutingLooksValid ? "ach-routing-help" : undefined}
+                    aria-invalid={!achRoutingLooksValid}
+                  />
+                  {!achRoutingLooksValid ? (
+                    <p id="ach-routing-help" className="text-sm text-red-600">Routing number checksum is invalid.</p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="ach_account_number" className="text-sm font-medium text-foreground">Account Number</label>
@@ -942,6 +1202,14 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
         </aside>
       </div>
     </main>
+  );
+}
+
+export function PublicPaymentPage({ slug }: { slug: string }) {
+  return (
+    <Elements stripe={stripePromise}>
+      <PublicPaymentPageContent slug={slug} />
+    </Elements>
   );
 }
 

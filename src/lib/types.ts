@@ -1,10 +1,11 @@
 export type AmountMode = "FIXED" | "RANGE" | "OPEN";
 export type CustomFieldType = "TEXT" | "NUMBER" | "DROPDOWN" | "DATE" | "CHECKBOX";
 export type PaymentMethod = "CARD" | "WALLET" | "ACH";
-export type TransactionStatus = "SUCCESS" | "FAILED" | "PENDING";
+export type TransactionStatus = "SUCCESS" | "FAILED" | "PENDING" | "REFUNDED";
 export type AppRole = "ADMIN" | "BUSINESS" | "CUSTOMER";
 export type PortalRole = "ADMIN" | "BUSINESS";
 export type CouponType = "PERCENT" | "FIXED";
+export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export interface SavedCustomerProfile {
   payer_name: string;
@@ -81,6 +82,11 @@ export interface PaymentPage {
   max_amount_cents?: number | null;
   email_template?: string | null;
   is_active: boolean;
+  approval_status: ApprovalStatus;
+  approval_note?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  submitted_at?: string | null;
   custom_fields: CustomField[];
   gl_codes: GLCode[];
   coupon_codes?: CouponCode[];
@@ -117,6 +123,8 @@ export interface Transaction {
   original_amount_display: string;
   discount_amount_cents: number;
   discount_amount_display: string;
+  refunded_amount_cents: number;
+  refunded_amount_display: string;
   coupon_code?: string | null;
   coupon_description?: string | null;
   payment_method: PaymentMethod;
@@ -131,6 +139,7 @@ export interface Transaction {
   field_responses: TransactionFieldResponse[];
   created_at: string;
   updated_at?: string | null;
+  refunded_at?: string | null;
 }
 
 export interface ReportSummary {

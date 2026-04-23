@@ -115,6 +115,11 @@ function createEmptyPage(): BuilderPage {
   </div>
 </div>`,
     is_active: true,
+    approval_status: "PENDING",
+    approval_note: "",
+    approved_by: null,
+    approved_at: null,
+    submitted_at: null,
     custom_fields: [],
     gl_codes: [],
     coupon_codes: [],
@@ -474,6 +479,11 @@ export function PageBuilder({
                   This page belongs to <span className="font-semibold text-foreground">{page.business_name}</span>.
                 </div>
               ) : null}
+              <div className="md:col-span-2 rounded-[1.6rem] border border-line bg-background/50 px-4 py-4 text-sm text-muted">
+                Approval status:{" "}
+                <span className="font-semibold text-foreground">{page.approval_status}</span>
+                {page.approval_note ? ` - ${page.approval_note}` : ""}
+              </div>
               <label className="space-y-2">
                 <span className="text-sm font-medium text-foreground">Organization Name {requiredStar}</span>
                 <input

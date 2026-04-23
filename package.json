@@ -9,10 +9,12 @@
     "start": "next start",
     "lint": "eslint .",
     "mongo:start": "./scripts/start-mongo.sh",
-    "backend:dev": "cd backend && ./.venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+    "backend:dev": "cd backend && ./.venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
     "backend:seed": "cd backend && ./.venv/bin/python seed.py"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^6.2.0",
+    "@stripe/stripe-js": "^9.3.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "lucide-react": "^1.8.0",

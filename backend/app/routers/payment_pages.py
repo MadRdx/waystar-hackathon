@@ -1,9 +1,9 @@
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.database import get_db
-from app.schemas import PaymentPagePayload, UserRole
+from app.schemas import ApprovalDecisionPayload, ApprovalStatus, PaymentPagePayload, UserRole
 from app.security import get_current_portal_user, page_belongs_to_user
 from app.serializers import serialize_page, serialize_page_summary
 from app.utils import (
@@ -124,6 +124,20 @@ def _page_scope_filter(current_user: dict) -> dict:
     return {"business_id": current_user.get("business_id")}
 
 
+def _enforce_business_approval_defaults(document: dict, current_user: dict, existing: dict | None = None) -> None:
+    if current_user["role"] != UserRole.BUSINESS.value:
+        return
+
+    # Any business submit/update re-enters admin review before public deployment.
+    document["approval_status"] = ApprovalStatus.PENDING.value
+    document["approval_note"] = None
+    document["approved_by"] = None
+    document["approved_at"] = None
+    document["submitted_at"] = now_utc()
+    if existing and existing.get("created_at"):
+        document["created_at"] = existing["created_at"]
+
+
 @router.get("/payment-pages")
 async def list_payment_pages(current_user: dict = Depends(get_current_portal_user)) -> dict:
     db = get_db()
@@ -139,7 +153,11 @@ async def list_payment_pages(current_user: dict = Depends(get_current_portal_use
                 "transaction_count": {"$sum": 1},
                 "total_amount_cents": {
                     "$sum": {
-                        "$cond": [{"$eq": ["$status", "SUCCESS"]}, "$amount_cents", 0]
+                        "$cond": [
+                            {"$in": ["$status", ["SUCCESS", "REFUNDED"]]},
+                            {"$subtract": ["$amount_cents", {"$ifNull": ["$refunded_amount_cents", 0]}]},
+                            0,
+                        ]
                     }
                 },
             }
@@ -165,9 +183,15 @@ async def create_payment_page(payload: PaymentPagePayload, current_user: dict = 
     if current_user["role"] == UserRole.BUSINESS.value:
         document["business_id"] = current_user.get("business_id")
         document["business_name"] = current_user.get("business_name") or document["organization_name"]
+        _enforce_business_approval_defaults(document, current_user)
     else:
         document["business_id"] = slugify(document["organization_name"])
         document["business_name"] = document["organization_name"]
+        document["approval_status"] = ApprovalStatus.APPROVED.value
+        document["approval_note"] = "Published by admin."
+        document["approved_by"] = str(current_user["_id"])
+        document["approved_at"] = now_utc()
+        document["submitted_at"] = now_utc()
 
     timestamp = now_utc()
     document["created_at"] = timestamp
@@ -208,11 +232,66 @@ async def update_payment_page(
     if current_user["role"] == UserRole.BUSINESS.value:
         document["business_id"] = current_user.get("business_id")
         document["business_name"] = current_user.get("business_name") or existing.get("business_name")
+        _enforce_business_approval_defaults(document, current_user, existing)
     else:
         document["business_id"] = existing.get("business_id") or slugify(document["organization_name"])
         document["business_name"] = existing.get("business_name") or document["organization_name"]
+        document["approval_status"] = existing.get("approval_status", ApprovalStatus.APPROVED.value)
+        document["approval_note"] = existing.get("approval_note")
+        document["approved_by"] = existing.get("approved_by")
+        document["approved_at"] = existing.get("approved_at")
+        document["submitted_at"] = existing.get("submitted_at") or existing["created_at"]
 
     await db.payment_pages.update_one({"_id": object_id}, {"$set": document})
+    updated = await db.payment_pages.find_one({"_id": object_id})
+    return {"item": serialize_page(updated)}
+
+
+@router.get("/payment-pages-approvals")
+async def list_approval_queue(
+    approval_status: ApprovalStatus = Query(default=ApprovalStatus.PENDING),
+    current_user: dict = Depends(get_current_portal_user),
+) -> dict:
+    if current_user["role"] != UserRole.ADMIN.value:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can access approvals.")
+
+    db = get_db()
+    pages = (
+        await db.payment_pages.find({"approval_status": approval_status.value})
+        .sort("submitted_at", -1)
+        .to_list(length=200)
+    )
+    return {"items": [serialize_page(page) for page in pages]}
+
+
+@router.post("/payment-pages/{page_id}/approval")
+async def decide_page_approval(
+    page_id: str,
+    payload: ApprovalDecisionPayload,
+    current_user: dict = Depends(get_current_portal_user),
+) -> dict:
+    if current_user["role"] != UserRole.ADMIN.value:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can approve pages.")
+
+    db = get_db()
+    object_id = _parse_object_id(page_id)
+    existing = await db.payment_pages.find_one({"_id": object_id})
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment page not found.")
+
+    update_doc = {
+        "approval_status": payload.action.value,
+        "approval_note": payload.note,
+        "updated_at": now_utc(),
+    }
+    if payload.action == ApprovalStatus.APPROVED:
+        update_doc["approved_by"] = str(current_user["_id"])
+        update_doc["approved_at"] = now_utc()
+    else:
+        update_doc["approved_by"] = None
+        update_doc["approved_at"] = None
+
+    await db.payment_pages.update_one({"_id": object_id}, {"$set": update_doc})
     updated = await db.payment_pages.find_one({"_id": object_id})
     return {"item": serialize_page(updated)}
 
@@ -220,7 +299,13 @@ async def update_payment_page(
 @router.get("/public/payment-pages/{slug}")
 async def get_public_payment_page(slug: str) -> dict:
     db = get_db()
-    page = await db.payment_pages.find_one({"slug": slugify(slug), "is_active": True})
+    page = await db.payment_pages.find_one(
+        {
+            "slug": slugify(slug),
+            "is_active": True,
+            "approval_status": ApprovalStatus.APPROVED.value,
+        }
+    )
     if not page:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment page not found.")
     return {"item": serialize_page(page, public=True)}

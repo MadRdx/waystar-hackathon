@@ -269,6 +269,24 @@ export async function updatePaymentPage(pageId: string, payload: Partial<Payment
   });
 }
 
+export async function getApprovalQueue(status: "PENDING" | "APPROVED" | "REJECTED" = "PENDING") {
+  return apiRequest<{ items: PaymentPage[] }>(`/payment-pages-approvals?approval_status=${status}`, {
+    sessionKind: "portal",
+  });
+}
+
+export async function decidePaymentPageApproval(
+  pageId: string,
+  action: "APPROVED" | "REJECTED",
+  note?: string,
+) {
+  return apiRequest<{ item: PaymentPage }>(`/payment-pages/${pageId}/approval`, {
+    method: "POST",
+    sessionKind: "portal",
+    body: { action, note: note || null },
+  });
+}
+
 export async function getPublicPaymentPage(slug: string) {
   return apiRequest<{ item: PaymentPage }>(`/public/payment-pages/${slug}`, {
     auth: false,
@@ -290,6 +308,32 @@ export async function submitPayment(slug: string, payload: Record<string, unknow
       body: payload,
     },
   );
+}
+
+export async function createStripePaymentIntent(
+  slug: string,
+  payload: {
+    payer_name: string;
+    payer_email: string;
+    amount_cents?: number;
+    coupon_code?: string;
+  },
+) {
+  return apiRequest<{
+    item: {
+      payment_intent_id: string;
+      client_secret: string;
+      amount_cents: number;
+      original_amount_cents: number;
+      discount_amount_cents: number;
+      coupon_code?: string | null;
+      coupon_description?: string | null;
+    };
+  }>(`/public/payment-pages/${slug}/stripe/intent`, {
+    method: "POST",
+    auth: false,
+    body: payload,
+  });
 }
 
 export async function getPublicTransaction(publicId: string) {

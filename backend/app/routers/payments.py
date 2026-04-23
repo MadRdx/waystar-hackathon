@@ -1,11 +1,12 @@
 from typing import Any
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
+from app.config import get_settings
 from app.database import get_db
 from app.emailer import deliver_email
-from app.schemas import CouponType, PaymentMethod, PaymentSubmissionPayload
+from app.schemas import CouponType, PaymentMethod, PaymentSubmissionPayload, StripeIntentPayload
 from app.security import get_optional_customer
 from app.serializers import serialize_page, serialize_transaction
 from app.utils import (
@@ -25,6 +26,169 @@ router = APIRouter(prefix="/public", tags=["payments"])
 
 
 DECLINED_TEST_CARDS = {"4000000000000002", "4000000000009995"}
+
+
+def _extract_intent_and_refund_amount(event_type: str, event_object: dict[str, Any]) -> tuple[str | None, int | None]:
+    if event_type == "charge.refunded":
+        return event_object.get("payment_intent"), event_object.get("amount_refunded")
+    if event_type.startswith("charge.refund."):
+        payment_intent = event_object.get("payment_intent")
+        amount = event_object.get("amount")
+        return payment_intent, amount
+    return None, None
+
+
+async def _apply_refund_update(payment_intent_id: str, refunded_amount_cents: int) -> None:
+    db = get_db()
+    transaction = await db.transactions.find_one({"processor_reference": payment_intent_id})
+    if not transaction:
+        return
+
+    refunded = max(0, min(refunded_amount_cents, int(transaction.get("amount_cents", 0))))
+    next_status = "REFUNDED" if refunded >= int(transaction.get("amount_cents", 0)) else transaction.get("status", "SUCCESS")
+
+    await db.transactions.update_one(
+        {"_id": transaction["_id"]},
+        {
+            "$set": {
+                "refunded_amount_cents": refunded,
+                "status": next_status,
+                "refunded_at": now_utc(),
+                "updated_at": now_utc(),
+                "processor_message": (
+                    "Refund completed via Stripe."
+                    if next_status == "REFUNDED"
+                    else "Partial refund processed via Stripe."
+                ),
+            }
+        },
+    )
+
+
+def _detect_card_brand(card_number_digits: str) -> str | None:
+    if card_number_digits.startswith("4"):
+        return "VISA"
+    if len(card_number_digits) >= 2 and 51 <= int(card_number_digits[:2]) <= 55:
+        return "MASTERCARD"
+    if len(card_number_digits) >= 4 and 2221 <= int(card_number_digits[:4]) <= 2720:
+        return "MASTERCARD"
+    if len(card_number_digits) >= 2 and card_number_digits[:2] in {"34", "37"}:
+        return "AMEX"
+    return None
+
+
+def _stripe_test_payment_method(payload: PaymentSubmissionPayload) -> str:
+    if payload.payment_method == PaymentMethod.CARD:
+        digits = "".join(char for char in payload.card_number or "" if char.isdigit())
+        if digits in DECLINED_TEST_CARDS or digits.endswith("0002"):
+            return "pm_card_chargeDeclined"
+        if digits.startswith(("34", "37")):
+            return "pm_card_amex"
+        if digits.startswith("4"):
+            return "pm_card_visa"
+        return "pm_card_mastercard"
+
+    if payload.payment_method == PaymentMethod.WALLET:
+        provider = (payload.wallet_provider or "").strip().lower()
+        if provider in {"apple_pay", "google_pay"}:
+            return "pm_card_visa"
+        return "pm_card_mastercard"
+
+    return "pm_usBankAccount_success"
+
+
+def _resolve_stripe_intent(payload: PaymentSubmissionPayload, amount_cents: int) -> tuple[str, str, str | None, str | None]:
+    settings = get_settings()
+    if not settings.stripe_enabled:
+        raise RuntimeError("Stripe is not configured.")
+    if not payload.stripe_payment_intent_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stripe payment intent is required for card checkout.",
+        )
+
+    import stripe
+
+    stripe.api_key = settings.stripe_secret_key
+    intent = stripe.PaymentIntent.retrieve(payload.stripe_payment_intent_id)
+    if not intent:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stripe payment was not found.")
+
+    intent_amount = int(intent.get("amount") or 0)
+    if intent_amount != amount_cents:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stripe payment amount does not match the submitted payment amount.",
+        )
+
+    intent_status = intent.get("status", "")
+    intent_id = intent.get("id")
+    if intent_status in {"succeeded"}:
+        return ("SUCCESS", f"Stripe approved ({intent_status}).", intent_id, "Payment approved.")
+    if intent_status in {"processing", "requires_capture"}:
+        return (
+            "PENDING",
+            f"Stripe processing ({intent_status}).",
+            intent_id,
+            "Payment accepted and pending processor completion.",
+        )
+    if intent_status in {"requires_action", "requires_payment_method", "canceled"}:
+        return (
+            "FAILED",
+            f"Stripe status {intent_status}.",
+            intent_id,
+            "Stripe did not complete the payment confirmation.",
+        )
+
+    return ("FAILED", f"Stripe status {intent_status}.", intent_id, "Stripe payment verification failed.")
+
+
+def _process_payment_method_with_stripe(
+    payload: PaymentSubmissionPayload, amount_cents: int, description: str
+) -> tuple[str, str, str | None, str | None]:
+    settings = get_settings()
+    if not settings.stripe_enabled:
+        raise RuntimeError("Stripe is not configured.")
+
+    import stripe
+
+    stripe.api_key = settings.stripe_secret_key
+
+    payment_method = _stripe_test_payment_method(payload)
+    intent = stripe.PaymentIntent.create(
+        amount=amount_cents,
+        currency=settings.stripe_currency.lower(),
+        confirm=True,
+        payment_method=payment_method,
+        metadata={
+            "qpp_flow": "public_payment_page",
+            "payment_method": payload.payment_method.value,
+            "wallet_provider": payload.wallet_provider or "",
+            "payer_email": payload.payer_email.lower(),
+        },
+        description=description,
+        payment_method_types=(
+            ["us_bank_account"] if payload.payment_method == PaymentMethod.ACH else ["card"]
+        ),
+    )
+
+    intent_status = intent.get("status", "")
+    intent_id = intent.get("id")
+    if intent_status in {"requires_payment_method", "canceled"}:
+        return (
+            "FAILED",
+            "Stripe declined the payment method.",
+            intent_id,
+            "Payment declined by Stripe test processor.",
+        )
+    if intent_status in {"processing", "requires_action"}:
+        return (
+            "PENDING",
+            f"Stripe processing ({intent_status}).",
+            intent_id,
+            "Payment accepted and pending processor completion.",
+        )
+    return ("SUCCESS", f"Stripe approved ({intent_status}).", intent_id, "Payment approved.")
 
 
 def _resolve_amount(page: dict[str, Any], payload: PaymentSubmissionPayload) -> int:
@@ -135,26 +299,79 @@ def _validate_custom_fields(page: dict[str, Any], payload: PaymentSubmissionPayl
     return values
 
 
-def _process_payment_method(payload: PaymentSubmissionPayload) -> tuple[str, str, str | None, str | None]:
+def _process_payment_method(
+    page: dict[str, Any], payload: PaymentSubmissionPayload, amount_cents: int
+) -> tuple[str, str, str | None, str | None, str]:
+    processor_mode = "sandbox"
+
     if payload.payment_method == PaymentMethod.CARD:
+        if payload.stripe_payment_intent_id:
+            status_value, processor_message, processor_reference, response_message = _resolve_stripe_intent(
+                payload, amount_cents
+            )
+            return (status_value, processor_message, processor_reference, response_message, "stripe")
+
         digits = "".join(char for char in payload.card_number or "" if char.isdigit())
         if not digits or not luhn_is_valid(digits):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enter a valid card number.")
+        card_brand = _detect_card_brand(digits)
+        if not card_brand:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only Visa, Mastercard, and American Express are supported in sandbox mode.",
+            )
         if not expiry_is_valid(payload.expiry_month, payload.expiry_year):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Card expiration date is invalid.")
         if not payload.cvv or not payload.cvv.isdigit() or len(payload.cvv) not in {3, 4}:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="CVV must be 3 or 4 digits.")
+        if card_brand == "AMEX" and len(payload.cvv) != 4:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="American Express requires a 4-digit CVV.")
         if not payload.billing_zip or len(payload.billing_zip.strip()) < 5:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Billing ZIP is required.")
+        try:
+            status_value, processor_message, processor_reference, response_message = _process_payment_method_with_stripe(
+                payload=payload,
+                amount_cents=amount_cents,
+                description=f"QPP {page.get('slug')} card payment",
+            )
+            return (status_value, processor_message, processor_reference, response_message, "stripe")
+        except Exception:
+            processor_mode = "sandbox"
         if digits in DECLINED_TEST_CARDS or digits.endswith("0002"):
-            return ("FAILED", "Sandbox card decline triggered.", "sandbox_card_decline", "Card was declined in sandbox mode.")
-        return ("SUCCESS", "Sandbox approval.", f"sandbox_card_{digits[-4:]}", "Payment approved.")
+            return (
+                "FAILED",
+                "Sandbox card decline triggered.",
+                "sandbox_card_decline",
+                "Card was declined in sandbox mode.",
+                processor_mode,
+            )
+        return (
+            "SUCCESS",
+            f"Sandbox approval ({card_brand}).",
+            f"sandbox_card_{digits[-4:]}",
+            "Payment approved.",
+            processor_mode,
+        )
 
     if payload.payment_method == PaymentMethod.WALLET:
         provider = (payload.wallet_provider or "").strip().lower()
         if provider not in {"apple_pay", "google_pay", "paypal", "venmo"}:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A supported wallet provider is required.")
-        return ("SUCCESS", "Wallet authorization approved.", f"sandbox_wallet_{provider}", "Digital wallet payment approved.")
+        try:
+            status_value, processor_message, processor_reference, response_message = _process_payment_method_with_stripe(
+                payload=payload,
+                amount_cents=amount_cents,
+                description=f"QPP {page.get('slug')} wallet payment ({provider})",
+            )
+            return (status_value, processor_message, processor_reference, response_message, "stripe")
+        except Exception:
+            return (
+                "SUCCESS",
+                "Wallet authorization approved.",
+                f"sandbox_wallet_{provider}",
+                "Digital wallet payment approved.",
+                processor_mode,
+            )
 
     routing = "".join(char for char in (payload.ach_routing_number or "") if char.isdigit())
     account = "".join(char for char in (payload.ach_account_number or "") if char.isdigit())
@@ -167,7 +384,21 @@ def _process_payment_method(payload: PaymentSubmissionPayload) -> tuple[str, str
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="ACH authorization language must be accepted.",
         )
-    return ("PENDING", "ACH file queued for settlement.", "sandbox_ach_pending", "ACH submitted. Settlement takes 2-3 business days.")
+    try:
+        status_value, processor_message, processor_reference, response_message = _process_payment_method_with_stripe(
+            payload=payload,
+            amount_cents=amount_cents,
+            description=f"QPP {page.get('slug')} ACH payment",
+        )
+        return (status_value, processor_message, processor_reference, response_message, "stripe")
+    except Exception:
+        return (
+            "PENDING",
+            "ACH file queued for settlement.",
+            "sandbox_ach_pending",
+            "ACH submitted. Settlement takes 2-3 business days.",
+            processor_mode,
+        )
 
 
 async def _record_email(page: dict[str, Any], transaction: dict[str, Any], field_values: dict[str, Any]) -> None:
@@ -273,7 +504,9 @@ async def submit_payment(
     original_amount_cents = _resolve_amount(page, payload)
     coupon_result = _apply_coupon(page, original_amount_cents, payload.coupon_code)
     field_values = _validate_custom_fields(page, payload)
-    status_value, processor_message, processor_reference, response_message = _process_payment_method(payload)
+    status_value, processor_message, processor_reference, response_message, processor_mode = _process_payment_method(
+        page, payload, coupon_result["final_amount_cents"]
+    )
 
     timestamp = now_utc()
     transaction_document = {
@@ -295,7 +528,7 @@ async def submit_payment(
         "status": status_value,
         "billing_zip": payload.billing_zip,
         "processor_reference": processor_reference,
-        "processor_mode": "sandbox",
+        "processor_mode": processor_mode,
         "processor_message": processor_message,
         "failure_reason": response_message if status_value == "FAILED" else None,
         "remember_payer": payload.remember_payer,
@@ -334,6 +567,62 @@ async def submit_payment(
     }
 
 
+@router.post("/payment-pages/{slug}/stripe/intent")
+async def create_stripe_intent(slug: str, payload: StripeIntentPayload) -> dict:
+    settings = get_settings()
+    if not settings.stripe_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Stripe is not configured on this server.",
+        )
+
+    db = get_db()
+    page = await db.payment_pages.find_one({"slug": slugify(slug), "is_active": True})
+    if not page:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment page not found.")
+
+    # Reuse existing amount/coupon validation for intent creation.
+    hydrated_payload = PaymentSubmissionPayload(
+        payer_name=payload.payer_name,
+        payer_email=payload.payer_email,
+        amount_cents=payload.amount_cents,
+        payment_method=PaymentMethod.CARD,
+        coupon_code=payload.coupon_code,
+    )
+    original_amount_cents = _resolve_amount(page, hydrated_payload)
+    coupon_result = _apply_coupon(page, original_amount_cents, payload.coupon_code)
+
+    import stripe
+
+    stripe.api_key = settings.stripe_secret_key
+    intent = stripe.PaymentIntent.create(
+        amount=coupon_result["final_amount_cents"],
+        currency=settings.stripe_currency.lower(),
+        automatic_payment_methods={"enabled": True},
+        metadata={
+            "qpp_flow": "public_payment_page",
+            "payment_method": "CARD",
+            "page_slug": page["slug"],
+            "payer_email": payload.payer_email.lower(),
+            "coupon_code": coupon_result["coupon_code"] or "",
+        },
+        description=f"QPP {page['slug']} card payment",
+        receipt_email=payload.payer_email.lower(),
+    )
+
+    return {
+        "item": {
+            "payment_intent_id": intent.get("id"),
+            "client_secret": intent.get("client_secret"),
+            "amount_cents": coupon_result["final_amount_cents"],
+            "original_amount_cents": coupon_result["original_amount_cents"],
+            "discount_amount_cents": coupon_result["discount_amount_cents"],
+            "coupon_code": coupon_result["coupon_code"],
+            "coupon_description": coupon_result["coupon_description"],
+        }
+    }
+
+
 @router.get("/transactions/{public_id}")
 async def get_public_transaction(public_id: str) -> dict:
     db = get_db()
@@ -348,3 +637,40 @@ async def list_public_payment_pages() -> dict:
     db = get_db()
     pages = await db.payment_pages.find({"is_active": True}).sort("updated_at", -1).to_list(length=100)
     return {"items": [serialize_page(page, public=True) for page in pages]}
+@router.post("/stripe/webhook")
+async def stripe_webhook(
+    request: Request,
+    stripe_signature: str | None = Header(default=None, alias="Stripe-Signature"),
+) -> dict:
+    settings = get_settings()
+    if not settings.stripe_secret_key:
+        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Stripe is not configured.")
+
+    payload = await request.body()
+    import stripe
+
+    stripe.api_key = settings.stripe_secret_key
+    event: dict[str, Any]
+
+    if settings.stripe_webhook_secret:
+        if not stripe_signature:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing Stripe signature header.")
+        try:
+            parsed = stripe.Webhook.construct_event(payload, stripe_signature, settings.stripe_webhook_secret)
+            event = dict(parsed)
+        except Exception as error:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Stripe webhook signature.") from error
+    else:
+        try:
+            event = stripe.Event.construct_from(await request.json(), stripe.api_key)
+        except Exception as error:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Stripe webhook payload.") from error
+
+    event_type = str(event.get("type", ""))
+    event_object = dict(event.get("data", {}).get("object", {}))
+
+    payment_intent_id, refunded_amount = _extract_intent_and_refund_amount(event_type, event_object)
+    if payment_intent_id and refunded_amount is not None:
+        await _apply_refund_update(payment_intent_id, int(refunded_amount))
+
+    return {"received": True}
