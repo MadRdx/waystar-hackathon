@@ -2,6 +2,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useState } from "react";
+import clsx from "clsx";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -14,6 +15,13 @@ import { formatCurrency } from "@/lib/format";
 import { glCodeIsValid } from "@/lib/validation";
 import type { CouponCode, CustomField, GLCode, PaymentPage } from "@/lib/types";
 import { ShareTools } from "@/components/admin/share-tools";
+
+const requiredStar = <span className="text-red-500 ml-0.5">*</span>;
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="mt-1 text-xs text-red-600">{message}</p>;
+}
 
 type BuilderPage = Omit<PaymentPage, "public_url" | "iframe_snippet"> & {
   public_url?: string;
@@ -112,6 +120,81 @@ export function PageBuilder({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  function clearFieldError(key: string) {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function validate(): boolean {
+    const errors: Record<string, string> = {};
+
+    if (page.organization_name.trim().length < 2) {
+      errors.organization_name = "Organization name must be at least 2 characters.";
+    }
+    if (page.slug.trim().length < 2) {
+      errors.slug = "URL slug must be at least 2 characters.";
+    }
+    if (page.title.trim().length < 2) {
+      errors.title = "Page title must be at least 2 characters.";
+    }
+    if (!page.gl_codes.length) {
+      errors.gl_codes = "Add at least one GL code before saving.";
+    }
+    page.gl_codes.forEach((glCode, i) => {
+      if (!glCodeIsValid(glCode.code)) {
+        errors[`gl_code_${i}`] = `GL code "${glCode.code || "blank"}" is not in a valid format (2-20 uppercase alphanumeric / dashes).`;
+      }
+    });
+    if (page.custom_fields.length > 10) {
+      errors.custom_fields = "You can only configure up to 10 custom fields.";
+    }
+    page.custom_fields.forEach((field, i) => {
+      if (!field.label.trim()) {
+        errors[`custom_field_label_${i}`] = "Every custom field needs a label.";
+      }
+      if (field.type === "DROPDOWN" && !field.options.length) {
+        errors[`custom_field_options_${i}`] = `Dropdown field "${field.label || "untitled"}" needs at least one option.`;
+      }
+    });
+    if (page.amount_mode === "FIXED" && !page.fixed_amount_cents) {
+      errors.fixed_amount = "Enter a fixed amount before saving this page.";
+    }
+    if (
+      page.amount_mode === "RANGE" &&
+      (page.min_amount_cents === null || page.min_amount_cents === undefined ||
+       page.max_amount_cents === null || page.max_amount_cents === undefined)
+    ) {
+      errors.range_amounts = "Range pages need both minimum and maximum amounts.";
+    }
+    if (
+      page.amount_mode === "RANGE" &&
+      page.min_amount_cents !== null && page.min_amount_cents !== undefined &&
+      page.max_amount_cents !== null && page.max_amount_cents !== undefined &&
+      page.min_amount_cents >= page.max_amount_cents
+    ) {
+      errors.range_amounts = "Minimum amount must be lower than maximum amount.";
+    }
+    (page.coupon_codes ?? []).forEach((coupon, i) => {
+      if (!coupon.code.trim()) {
+        errors[`coupon_code_${i}`] = "Coupon code cannot be blank.";
+      }
+      if (coupon.type === "PERCENT" && (coupon.percent_off === null || coupon.percent_off === undefined || coupon.percent_off <= 0 || coupon.percent_off >= 100)) {
+        errors[`coupon_percent_${i}`] = "Percent off must be between 1 and 99.";
+      }
+      if (coupon.type === "FIXED" && (coupon.amount_off_cents === null || coupon.amount_off_cents === undefined || coupon.amount_off_cents <= 0)) {
+        errors[`coupon_amount_${i}`] = "Amount off must be greater than zero.";
+      }
+    });
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
 
   useEffect(() => {
     if (!pageId) {
@@ -147,6 +230,7 @@ export function PageBuilder({
 
   function updateField<K extends keyof BuilderPage>(key: K, value: BuilderPage[K]) {
     setPage((current) => ({ ...current, [key]: value }));
+    clearFieldError(key);
   }
 
   function updateCustomField(index: number, updates: Partial<CustomField>) {
@@ -156,6 +240,8 @@ export function PageBuilder({
         currentIndex === index ? { ...field, ...updates } : field,
       ),
     }));
+    if (updates.label !== undefined) clearFieldError(`custom_field_label_${index}`);
+    if (updates.options !== undefined) clearFieldError(`custom_field_options_${index}`);
   }
 
   function updateGlCode(index: number, updates: Partial<GLCode>) {
@@ -165,6 +251,8 @@ export function PageBuilder({
         currentIndex === index ? { ...code, ...updates } : code,
       ),
     }));
+    if (updates.code !== undefined) clearFieldError(`gl_code_${index}`);
+    clearFieldError("gl_codes");
   }
 
   function updateCoupon(index: number, updates: Partial<CouponCode>) {
@@ -175,6 +263,9 @@ export function PageBuilder({
       ),
       accepts_coupons: true,
     }));
+    if (updates.code !== undefined) clearFieldError(`coupon_code_${index}`);
+    if (updates.percent_off !== undefined) clearFieldError(`coupon_percent_${index}`);
+    if (updates.amount_off_cents !== undefined) clearFieldError(`coupon_amount_${index}`);
   }
 
   function reorderCustomField(index: number, direction: -1 | 1) {
@@ -234,117 +325,13 @@ export function PageBuilder({
     setError(null);
     setSuccess(null);
 
-    if (page.organization_name.trim().length < 2) {
+    if (!validate()) {
       setSaving(false);
-      setError("Organization name must be at least 2 characters.");
+      setError("Please fix the highlighted errors below before saving.");
       return;
     }
 
-    if (page.slug.trim().length < 2) {
-      setSaving(false);
-      setError("URL slug must be at least 2 characters.");
-      return;
-    }
 
-    if (page.title.trim().length < 2) {
-      setSaving(false);
-      setError("Page title must be at least 2 characters.");
-      return;
-    }
-
-    if (!page.gl_codes.length) {
-      setSaving(false);
-      setError("Add at least one GL code before saving.");
-      return;
-    }
-
-    const invalidGlCode = page.gl_codes.find((glCode) => !glCodeIsValid(glCode.code));
-    if (invalidGlCode) {
-      setSaving(false);
-      setError(`GL code "${invalidGlCode.code || "blank"}" is not in a valid format.`);
-      return;
-    }
-
-    if (page.custom_fields.length > 10) {
-      setSaving(false);
-      setError("You can only configure up to 10 custom fields.");
-      return;
-    }
-
-    const blankCustomField = page.custom_fields.find((field) => !field.label.trim());
-    if (blankCustomField) {
-      setSaving(false);
-      setError("Every custom field needs a label, or remove the unfinished field.");
-      return;
-    }
-
-    const invalidDropdown = page.custom_fields.find(
-      (field) => field.type === "DROPDOWN" && !field.options.length,
-    );
-    if (invalidDropdown) {
-      setSaving(false);
-      setError(`Dropdown field "${invalidDropdown.label}" needs at least one option.`);
-      return;
-    }
-
-    if (page.amount_mode === "FIXED" && !page.fixed_amount_cents) {
-      setSaving(false);
-      setError("Enter a fixed amount before saving this page.");
-      return;
-    }
-
-    if (
-      page.amount_mode === "RANGE" &&
-      (page.min_amount_cents === null ||
-        page.min_amount_cents === undefined ||
-        page.max_amount_cents === null ||
-        page.max_amount_cents === undefined)
-    ) {
-      setSaving(false);
-      setError("Range pages need both minimum and maximum amounts.");
-      return;
-    }
-
-    if (
-      page.amount_mode === "RANGE" &&
-      page.min_amount_cents !== null &&
-      page.min_amount_cents !== undefined &&
-      page.max_amount_cents !== null &&
-      page.max_amount_cents !== undefined &&
-      page.min_amount_cents >= page.max_amount_cents
-    ) {
-      setSaving(false);
-      setError("Minimum amount must be lower than maximum amount.");
-      return;
-    }
-
-    const invalidCoupon = (page.coupon_codes ?? []).find((coupon) => {
-      if (!coupon.code.trim()) {
-        return true;
-      }
-
-      if (coupon.type === "PERCENT") {
-        return (
-          coupon.percent_off === null ||
-          coupon.percent_off === undefined ||
-          coupon.percent_off <= 0 ||
-          coupon.percent_off >= 100
-        );
-      }
-
-      return (
-        coupon.amount_off_cents === null ||
-        coupon.amount_off_cents === undefined ||
-        coupon.amount_off_cents <= 0
-      );
-    });
-    if (invalidCoupon) {
-      setSaving(false);
-      setError(
-        `Coupon "${invalidCoupon.code || "blank"}" is incomplete. Fill in the code and discount values before saving.`,
-      );
-      return;
-    }
 
     const payload = {
       slug: page.slug,
@@ -455,28 +442,31 @@ export function PageBuilder({
                 </div>
               ) : null}
               <label className="space-y-2">
-                <span className="text-sm font-medium text-foreground">Organization Name</span>
+                <span className="text-sm font-medium text-foreground">Organization Name {requiredStar}</span>
                 <input
                   value={page.organization_name}
                   onChange={(event) => updateField("organization_name", event.target.value)}
-                  className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                  className={clsx("w-full rounded-2xl border bg-white px-4 py-3", fieldErrors.organization_name ? "border-red-400" : "border-line")}
                 />
+                <FieldError message={fieldErrors.organization_name} />
               </label>
               <label className="space-y-2">
-                <span className="text-sm font-medium text-foreground">URL Slug</span>
+                <span className="text-sm font-medium text-foreground">URL Slug {requiredStar}</span>
                 <input
                   value={page.slug}
                   onChange={(event) => updateField("slug", event.target.value)}
-                  className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                  className={clsx("w-full rounded-2xl border bg-white px-4 py-3", fieldErrors.slug ? "border-red-400" : "border-line")}
                 />
+                <FieldError message={fieldErrors.slug} />
               </label>
               <label className="space-y-2 md:col-span-2">
-                <span className="text-sm font-medium text-foreground">Page Title</span>
+                <span className="text-sm font-medium text-foreground">Page Title {requiredStar}</span>
                 <input
                   value={page.title}
                   onChange={(event) => updateField("title", event.target.value)}
-                  className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                  className={clsx("w-full rounded-2xl border bg-white px-4 py-3", fieldErrors.title ? "border-red-400" : "border-line")}
                 />
+                <FieldError message={fieldErrors.title} />
               </label>
               <label className="space-y-2 md:col-span-2">
                 <span className="text-sm font-medium text-foreground">Subtitle / Description</span>
@@ -589,43 +579,54 @@ export function PageBuilder({
                   </select>
                 </label>
                 <label className="space-y-2">
-                  <span className="text-sm font-medium text-foreground">Fixed Amount</span>
+                  <span className="text-sm font-medium text-foreground">
+                    Fixed Amount {page.amount_mode === "FIXED" && requiredStar}
+                  </span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={fixedAmountValue}
-                    onChange={(event) =>
-                      updateField("fixed_amount_cents", moneyInputToCents(event.target.value))
-                    }
-                    className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                    onChange={(event) => {
+                      updateField("fixed_amount_cents", moneyInputToCents(event.target.value));
+                      clearFieldError("fixed_amount");
+                    }}
+                    className={clsx("w-full rounded-2xl border bg-white px-4 py-3", fieldErrors.fixed_amount ? "border-red-400" : "border-line")}
                   />
+                  <FieldError message={fieldErrors.fixed_amount} />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-sm font-medium text-foreground">Minimum</span>
+                  <span className="text-sm font-medium text-foreground">
+                    Minimum {page.amount_mode === "RANGE" && requiredStar}
+                  </span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={minAmountValue}
-                    onChange={(event) =>
-                      updateField("min_amount_cents", moneyInputToCents(event.target.value))
-                    }
-                    className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                    onChange={(event) => {
+                      updateField("min_amount_cents", moneyInputToCents(event.target.value));
+                      clearFieldError("range_amounts");
+                    }}
+                    className={clsx("w-full rounded-2xl border bg-white px-4 py-3", fieldErrors.range_amounts ? "border-red-400" : "border-line")}
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-sm font-medium text-foreground">Maximum</span>
+                  <span className="text-sm font-medium text-foreground">
+                    Maximum {page.amount_mode === "RANGE" && requiredStar}
+                  </span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={maxAmountValue}
-                    onChange={(event) =>
-                      updateField("max_amount_cents", moneyInputToCents(event.target.value))
-                    }
-                    className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                    onChange={(event) => {
+                      updateField("max_amount_cents", moneyInputToCents(event.target.value));
+                      clearFieldError("range_amounts");
+                    }}
+                    className={clsx("w-full rounded-2xl border bg-white px-4 py-3", fieldErrors.range_amounts ? "border-red-400" : "border-line")}
                   />
+                  <FieldError message={fieldErrors.range_amounts} />
                 </label>
               </div>
             </section>
@@ -660,14 +661,15 @@ export function PageBuilder({
                   <div key={field.id} className="rounded-3xl border border-line bg-white p-4">
                     <div className="grid gap-4 lg:grid-cols-12">
                       <label className="space-y-2 lg:col-span-4">
-                        <span className="text-sm font-medium text-foreground">Label</span>
+                        <span className="text-sm font-medium text-foreground">Label {requiredStar}</span>
                         <input
                           value={field.label}
                           onChange={(event) =>
                             updateCustomField(index, { label: event.target.value })
                           }
-                          className="w-full rounded-2xl border border-line bg-background/70 px-4 py-3"
+                          className={clsx("w-full rounded-2xl border bg-background/70 px-4 py-3", fieldErrors[`custom_field_label_${index}`] ? "border-red-400" : "border-line")}
                         />
+                        <FieldError message={fieldErrors[`custom_field_label_${index}`]} />
                       </label>
                       <label className="space-y-2 lg:col-span-3">
                         <span className="text-sm font-medium text-foreground">Type</span>
@@ -742,7 +744,7 @@ export function PageBuilder({
                       </label>
                       <label className="space-y-2">
                         <span className="text-sm font-medium text-foreground">
-                          Dropdown Options
+                          Dropdown Options {field.type === "DROPDOWN" && requiredStar}
                         </span>
                         <input
                           value={field.options.join(", ")}
@@ -754,8 +756,9 @@ export function PageBuilder({
                                 .filter(Boolean),
                             })
                           }
-                          className="w-full rounded-2xl border border-line bg-background/70 px-4 py-3"
+                          className={clsx("w-full rounded-2xl border bg-background/70 px-4 py-3", fieldErrors[`custom_field_options_${index}`] ? "border-red-400" : "border-line")}
                         />
+                        <FieldError message={fieldErrors[`custom_field_options_${index}`]} />
                       </label>
                       <label className="flex items-center gap-3 rounded-2xl border border-line bg-background/70 px-4 py-3">
                         <input
@@ -776,19 +779,21 @@ export function PageBuilder({
             <section className="rounded-[1.6rem] border border-line bg-white/70 p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h4 className="text-lg font-semibold text-foreground">GL Codes</h4>
+                  <h4 className="text-lg font-semibold text-foreground">GL Codes {requiredStar}</h4>
                   <p className="text-sm leading-7 text-muted">
                     Add one or more validated ledger codes to stamp onto every transaction.
                   </p>
+                  <FieldError message={fieldErrors.gl_codes} />
                 </div>
                 <button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
                     setPage((current) => ({
                       ...current,
                       gl_codes: [...current.gl_codes, createGlCode(current.gl_codes.length)],
-                    }))
-                  }
+                    }));
+                    clearFieldError("gl_codes");
+                  }}
                   className="inline-flex rounded-full border border-line px-4 py-2 text-sm font-semibold text-foreground hover:border-brand hover:text-brand"
                 >
                   Add GL Code
@@ -799,14 +804,15 @@ export function PageBuilder({
                 {page.gl_codes.map((glCode, index) => (
                   <div key={glCode.id} className="grid gap-4 rounded-3xl border border-line bg-white p-4 lg:grid-cols-[1fr_1fr_auto]">
                     <label className="space-y-2">
-                      <span className="text-sm font-medium text-foreground">Code</span>
+                      <span className="text-sm font-medium text-foreground">Code {requiredStar}</span>
                       <input
                         value={glCode.code}
                         onChange={(event) =>
                           updateGlCode(index, { code: event.target.value.toUpperCase() })
                         }
-                        className="w-full rounded-2xl border border-line bg-background/70 px-4 py-3"
+                        className={clsx("w-full rounded-2xl border bg-background/70 px-4 py-3", fieldErrors[`gl_code_${index}`] ? "border-red-400" : "border-line")}
                       />
+                      <FieldError message={fieldErrors[`gl_code_${index}`]} />
                     </label>
                     <label className="space-y-2">
                       <span className="text-sm font-medium text-foreground">Label</span>
@@ -920,7 +926,7 @@ export function PageBuilder({
                         >
                           <div className="grid gap-4 lg:grid-cols-12">
                             <label className="space-y-2 lg:col-span-3">
-                              <span className="text-sm font-medium text-foreground">Code</span>
+                              <span className="text-sm font-medium text-foreground">Code {requiredStar}</span>
                               <input
                                 value={coupon.code}
                                 onChange={(event) =>
@@ -928,8 +934,9 @@ export function PageBuilder({
                                     code: event.target.value.toUpperCase().replace(/\s+/g, ""),
                                   })
                                 }
-                                className="w-full rounded-2xl border border-line bg-background/70 px-4 py-3"
+                                className={clsx("w-full rounded-2xl border bg-background/70 px-4 py-3", fieldErrors[`coupon_code_${index}`] ? "border-red-400" : "border-line")}
                               />
+                              <FieldError message={fieldErrors[`coupon_code_${index}`]} />
                             </label>
                             <label className="space-y-2 lg:col-span-4">
                               <span className="text-sm font-medium text-foreground">Description</span>
@@ -977,7 +984,7 @@ export function PageBuilder({
                           <div className="mt-4 grid gap-4 lg:grid-cols-4">
                             <label className="space-y-2">
                               <span className="text-sm font-medium text-foreground">
-                                Percent Off
+                                Percent Off {coupon.type === "PERCENT" && requiredStar}
                               </span>
                               <input
                                 type="number"
@@ -991,12 +998,13 @@ export function PageBuilder({
                                       : null,
                                   })
                                 }
-                                className="w-full rounded-2xl border border-line bg-background/70 px-4 py-3"
+                                className={clsx("w-full rounded-2xl border bg-background/70 px-4 py-3", fieldErrors[`coupon_percent_${index}`] ? "border-red-400" : "border-line")}
                               />
+                              <FieldError message={fieldErrors[`coupon_percent_${index}`]} />
                             </label>
                             <label className="space-y-2">
                               <span className="text-sm font-medium text-foreground">
-                                Amount Off
+                                Amount Off {coupon.type === "FIXED" && requiredStar}
                               </span>
                               <input
                                 type="number"
@@ -1008,8 +1016,9 @@ export function PageBuilder({
                                     amount_off_cents: moneyInputToCents(event.target.value),
                                   })
                                 }
-                                className="w-full rounded-2xl border border-line bg-background/70 px-4 py-3"
+                                className={clsx("w-full rounded-2xl border bg-background/70 px-4 py-3", fieldErrors[`coupon_amount_${index}`] ? "border-red-400" : "border-line")}
                               />
+                              <FieldError message={fieldErrors[`coupon_amount_${index}`]} />
                             </label>
                             <label className="space-y-2">
                               <span className="text-sm font-medium text-foreground">

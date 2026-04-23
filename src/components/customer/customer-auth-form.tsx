@@ -83,6 +83,12 @@ export function CustomerAuthForm({ mode }: { mode: "login" | "register" }) {
           </div>
           <div className="mt-8 flex flex-wrap gap-4">
             <Link
+              href="/"
+              className="inline-flex items-center text-sm font-semibold text-brand hover:text-brand-strong"
+            >
+              ← Back to Home
+            </Link>
+            <Link
               href="/pay/yoga-class"
               className="inline-flex items-center text-sm font-semibold text-brand hover:text-brand-strong"
             >

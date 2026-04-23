@@ -145,6 +145,12 @@ export function CustomerDashboard() {
             </div>
             <div className="flex flex-wrap gap-3">
               <Link
+                href="/"
+                className="inline-flex rounded-full border border-line px-5 py-3 text-sm font-semibold text-foreground hover:border-brand hover:text-brand"
+              >
+                Home
+              </Link>
+              <Link
                 href="/pay/yoga-class"
                 className="inline-flex rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white hover:bg-brand-strong"
               >

@@ -27,6 +27,7 @@ export function AdminShell({
   });
 
   const navItems = [
+    { href: "/", label: "Home" },
     { href: basePath, label: "Dashboard" },
     { href: `${basePath}/pages/new`, label: "Create Page" },
     { href: `${basePath}/reports`, label: "Reports" },
