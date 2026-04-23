@@ -367,32 +367,35 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
           </div>
 
           <div className="mt-8 grid gap-4 lg:grid-cols-2">
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-foreground">Payer Name</span>
+            <div className="space-y-2">
+              <label htmlFor="payer_name" className="text-sm font-medium text-foreground">Payer Name</label>
               <input
+                id="payer_name"
                 value={form.payer_name}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, payer_name: event.target.value }))
                 }
-                className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               />
-            </label>
+            </div>
 
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-foreground">Email Address</span>
+            <div className="space-y-2">
+              <label htmlFor="payer_email" className="text-sm font-medium text-foreground">Email Address</label>
               <input
+                id="payer_email"
                 type="email"
                 value={form.payer_email}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, payer_email: event.target.value }))
                 }
-                className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               />
-            </label>
+            </div>
 
-            <label className={clsx("space-y-2", page.accepts_coupons ? "" : "lg:col-span-2")}>
-              <span className="text-sm font-medium text-foreground">Amount</span>
+            <div className={clsx("space-y-2", page.accepts_coupons ? "" : "lg:col-span-2")}>
+              <label htmlFor="amount_input" className="text-sm font-medium text-foreground">Amount</label>
               <input
+                id="amount_input"
                 type="number"
                 min="0"
                 step="0.01"
@@ -401,18 +404,19 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                 onChange={(event) =>
                   setForm((current) => ({ ...current, amount_input: event.target.value }))
                 }
-                className="w-full rounded-2xl border border-line bg-white px-4 py-3 disabled:bg-background/60"
+                className="w-full rounded-2xl border border-line bg-white px-4 py-3 disabled:bg-background/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                 aria-describedby="amount-help"
               />
               <p id="amount-help" className="text-sm leading-7 text-muted">
                 {amountHint}
               </p>
-            </label>
+            </div>
 
             {page.accepts_coupons ? (
-              <label className="space-y-2">
-                <span className="text-sm font-medium text-foreground">Coupon Code</span>
+              <div className="space-y-2">
+                <label htmlFor="coupon_code" className="text-sm font-medium text-foreground">Coupon Code</label>
                 <input
+                  id="coupon_code"
                   value={form.coupon_code}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -421,12 +425,13 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                     }))
                   }
                   placeholder="SAVE10"
-                  className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                  className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                  aria-describedby="coupon-help"
                 />
-                <p className="text-sm leading-7 text-muted">
+                <p id="coupon-help" className="text-sm leading-7 text-muted">
                   Enter a valid coupon for this business to apply your discount during checkout.
                 </p>
-              </label>
+              </div>
             ) : null}
           </div>
 
@@ -435,10 +440,12 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
               .sort((a, b) => a.sort_order - b.sort_order)
               .map((field) => (
                 <div key={field.id} className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    {field.label}
-                    {field.is_required ? " *" : ""}
-                  </label>
+                  {field.type !== "CHECKBOX" ? (
+                    <label htmlFor={`field-${field.key}`} className="text-sm font-medium text-foreground">
+                      {field.label}
+                      {field.is_required ? " *" : ""}
+                    </label>
+                  ) : null}
                   {field.type === "TEXT" || field.type === "NUMBER" || field.type === "DATE" ? (
                     <input
                       type={
@@ -459,7 +466,9 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                           },
                         }))
                       }
-                      className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                      id={`field-${field.key}`}
+                      className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                      aria-describedby={field.helper_text ? `field-help-${field.key}` : undefined}
                     />
                   ) : null}
 
@@ -475,7 +484,9 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                           },
                         }))
                       }
-                      className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                      id={`field-${field.key}`}
+                      className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                      aria-describedby={field.helper_text ? `field-help-${field.key}` : undefined}
                     >
                       <option value="">Select an option</option>
                       {field.options.map((option) => (
@@ -500,6 +511,8 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                             },
                           }))
                         }
+                        id={`field-${field.key}`}
+                        className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                       />
                       <span className="text-sm text-foreground">
                         {field.helper_text || field.label}
@@ -508,7 +521,7 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                   ) : null}
 
                   {field.helper_text && field.type !== "CHECKBOX" ? (
-                    <p className="text-sm leading-7 text-muted">{field.helper_text}</p>
+                    <p id={`field-help-${field.key}`} className="text-sm leading-7 text-muted">{field.helper_text}</p>
                   ) : null}
                 </div>
               ))}
@@ -536,15 +549,17 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
 
             {paymentMethod === "CARD" ? (
               <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <label className="space-y-2 md:col-span-2">
-                  <span className="text-sm font-medium text-foreground">Card Number</span>
+                <div className="space-y-2 md:col-span-2">
+                  <label htmlFor="card_number" className="text-sm font-medium text-foreground">Card Number</label>
                   <input
+                    id="card_number"
                     value={form.card_number}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, card_number: event.target.value }))
                     }
-                    className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                    className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                     aria-describedby="card-help"
+                    aria-invalid={!cardNumberLooksValid}
                   />
                   <p
                     id="card-help"
@@ -557,10 +572,11 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                       ? "Use test card 4242 4242 4242 4242 for a success flow."
                       : "The card number does not pass Luhn validation."}
                   </p>
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-foreground">Expiration Month</span>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="expiry_month" className="text-sm font-medium text-foreground">Expiration Month</label>
                   <input
+                    id="expiry_month"
                     type="number"
                     min="1"
                     max="12"
@@ -568,53 +584,59 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                     onChange={(event) =>
                       setForm((current) => ({ ...current, expiry_month: event.target.value }))
                     }
-                    className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                    className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                   />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-foreground">Expiration Year</span>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="expiry_year" className="text-sm font-medium text-foreground">Expiration Year</label>
                   <input
+                    id="expiry_year"
                     type="number"
                     min="24"
                     value={form.expiry_year}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, expiry_year: event.target.value }))
                     }
-                    className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                    className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    aria-describedby="expiry-help"
+                    aria-invalid={!expiryLooksValid}
                   />
                   {!expiryLooksValid ? (
-                    <p className="text-sm text-red-600">Expiration must be in the future.</p>
+                    <p id="expiry-help" className="text-sm text-red-600">Expiration must be in the future.</p>
                   ) : null}
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-foreground">CVV</span>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="cvv" className="text-sm font-medium text-foreground">CVV</label>
                   <input
+                    id="cvv"
                     value={form.cvv}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, cvv: event.target.value }))
                     }
-                    className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                    className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                   />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-foreground">Billing ZIP</span>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="billing_zip" className="text-sm font-medium text-foreground">Billing ZIP</label>
                   <input
+                    id="billing_zip"
                     value={form.billing_zip}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, billing_zip: event.target.value }))
                     }
-                    className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                    className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                   />
-                </label>
+                </div>
               </div>
             ) : null}
 
             {paymentMethod === "WALLET" ? (
               <div className="mt-5 rounded-[1.6rem] border border-line bg-white/75 p-5">
                 <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-foreground">Wallet Provider</span>
+                  <div className="space-y-2">
+                    <label htmlFor="wallet_provider" className="text-sm font-medium text-foreground">Wallet Provider</label>
                     <select
+                      id="wallet_provider"
                       value={form.wallet_provider}
                       onChange={(event) =>
                         setForm((current) => ({
@@ -622,7 +644,7 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                           wallet_provider: event.target.value,
                         }))
                       }
-                      className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                      className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                     >
                       {walletOptions.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -630,7 +652,7 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                         </option>
                       ))}
                     </select>
-                  </label>
+                  </div>
                   <div>
                     <p className="text-sm font-semibold text-foreground">
                       {walletDetails.label} was auto-detected for this browser.
@@ -645,9 +667,10 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
 
             {paymentMethod === "ACH" ? (
               <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-foreground">Routing Number</span>
+                <div className="space-y-2">
+                  <label htmlFor="ach_routing_number" className="text-sm font-medium text-foreground">Routing Number</label>
                   <input
+                    id="ach_routing_number"
                     value={form.ach_routing_number}
                     onChange={(event) =>
                       setForm((current) => ({
@@ -655,17 +678,20 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                         ach_routing_number: event.target.value,
                       }))
                     }
-                    className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                    className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    aria-describedby="ach-routing-help"
+                    aria-invalid={!achRoutingLooksValid}
                   />
                   {!achRoutingLooksValid ? (
-                    <p className="text-sm text-red-600">
+                    <p id="ach-routing-help" className="text-sm text-red-600">
                       Routing number checksum is invalid.
                     </p>
                   ) : null}
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-foreground">Account Number</span>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="ach_account_number" className="text-sm font-medium text-foreground">Account Number</label>
                   <input
+                    id="ach_account_number"
                     value={form.ach_account_number}
                     onChange={(event) =>
                       setForm((current) => ({
@@ -673,10 +699,10 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                         ach_account_number: event.target.value,
                       }))
                     }
-                    className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                    className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                   />
-                </label>
-                <label className="md:col-span-2 flex items-start gap-3 rounded-2xl border border-line bg-white px-4 py-4">
+                </div>
+                <label className="md:col-span-2 flex items-start gap-3 rounded-2xl border border-line bg-white px-4 py-4 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={form.ach_authorized}
@@ -686,6 +712,7 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                         ach_authorized: event.target.checked,
                       }))
                     }
+                    className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                   />
                   <span className="text-sm leading-7 text-muted">
                     I authorize this organization to debit my bank account for the amount entered today. ACH payments may take 2-3 business days to settle under NACHA processing timelines.
@@ -696,7 +723,7 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
           </div>
 
           <div className="mt-8 rounded-[1.6rem] border border-line bg-white/75 p-5">
-            <label className="flex items-start gap-3">
+            <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 checked={form.remember_payer}
@@ -706,6 +733,7 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
                     remember_payer: event.target.checked,
                   }))
                 }
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               />
               <span className="text-sm leading-7 text-muted">
                 Remember my payer details on this device for faster repeat payments.
