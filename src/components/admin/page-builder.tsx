@@ -82,8 +82,38 @@ function createEmptyPage(): BuilderPage {
     fixed_amount_cents: 2500,
     min_amount_cents: 1000,
     max_amount_cents: 50000,
-    email_template:
-      "<h1>Thanks, {{payerName}}</h1><p>We received {{amount}} for {{pageTitle}}.</p><p>Transaction ID: {{transactionId}} on {{date}}</p>",
+    email_template: `<div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+  <div style="background-color: #0F766E; padding: 30px; text-align: center;">
+    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">Payment Receipt</h1>
+  </div>
+  <div style="padding: 30px; background-color: #ffffff;">
+    <p style="font-size: 16px; color: #374151; margin-top: 0;">Hello <strong>{{payerName}}</strong>,</p>
+    <p style="font-size: 16px; color: #374151; line-height: 1.5;">Thank you for your payment! We have successfully received your payment for <strong>{{pageTitle}}</strong>.</p>
+    
+    <div style="background-color: #f3f4f6; border-radius: 8px; padding: 20px; margin: 25px 0;">
+      <h2 style="margin: 0 0 10px 0; font-size: 14px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Payment Details</h2>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 8px 0; color: #4b5563; font-size: 15px;">Amount Paid:</td>
+          <td style="padding: 8px 0; color: #111827; font-size: 15px; font-weight: 600; text-align: right;">{{amount}}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #4b5563; font-size: 15px;">Date:</td>
+          <td style="padding: 8px 0; color: #111827; font-size: 15px; text-align: right;">{{date}}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; color: #4b5563; font-size: 15px; border-bottom: none;">Transaction ID:</td>
+          <td style="padding: 8px 0; color: #111827; font-size: 15px; text-align: right; font-family: monospace;">{{transactionId}}</td>
+        </tr>
+      </table>
+    </div>
+    
+    <p style="font-size: 14px; color: #6b7280; margin-bottom: 0;">If you have any questions about this receipt, please contact support.</p>
+  </div>
+  <div style="background-color: #f9fafb; padding: 15px; text-align: center; border-top: 1px solid #e5e7eb;">
+    <p style="font-size: 12px; color: #9ca3af; margin: 0;">Powered by Waystar Quick Payment Pages</p>
+  </div>
+</div>`,
     is_active: true,
     custom_fields: [],
     gl_codes: [],
@@ -407,8 +437,11 @@ export function PageBuilder({
             <div className="flex gap-3">
               <Link
                 href={portalBase}
-                className="inline-flex rounded-full border border-line px-4 py-2 text-sm font-semibold text-foreground hover:border-brand hover:text-brand"
+                className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-brand hover:text-brand"
               >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
                 Back
               </Link>
               <button
@@ -1172,11 +1205,12 @@ export function PageBuilder({
             </div>
           </section>
 
-          {pageId && page.public_url && page.iframe_snippet ? (
-            <ShareTools page={page as PaymentPage} />
-          ) : null}
         </div>
       </section>
+
+      {pageId && page.public_url && page.iframe_snippet ? (
+        <ShareTools page={page as PaymentPage} />
+      ) : null}
     </div>
   );
 }
