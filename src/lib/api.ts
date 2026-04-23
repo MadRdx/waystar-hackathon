@@ -105,7 +105,7 @@ export function getStoredSession<TUser extends SessionUser = SessionUser>(
     return null;
   }
 
-  const stored = window.localStorage.getItem(SESSION_STORAGE_KEYS[kind]);
+  const stored = window.sessionStorage.getItem(SESSION_STORAGE_KEYS[kind]);
   if (!stored) {
     return null;
   }
@@ -118,11 +118,11 @@ export function getStoredSession<TUser extends SessionUser = SessionUser>(
 }
 
 export function setStoredSession(kind: SessionKind, session: Session) {
-  window.localStorage.setItem(SESSION_STORAGE_KEYS[kind], JSON.stringify(session));
+  window.sessionStorage.setItem(SESSION_STORAGE_KEYS[kind], JSON.stringify(session));
 }
 
 export function clearStoredSession(kind: SessionKind) {
-  window.localStorage.removeItem(SESSION_STORAGE_KEYS[kind]);
+  window.sessionStorage.removeItem(SESSION_STORAGE_KEYS[kind]);
 }
 
 export function getRememberedPayer(slug: string): RememberedPayerDetails | null {
@@ -271,6 +271,12 @@ export async function updatePaymentPage(pageId: string, payload: Partial<Payment
 
 export async function getPublicPaymentPage(slug: string) {
   return apiRequest<{ item: PaymentPage }>(`/public/payment-pages/${slug}`, {
+    auth: false,
+  });
+}
+
+export async function getPublicPaymentPages() {
+  return apiRequest<{ items: PaymentPage[] }>("/public/payment-pages", {
     auth: false,
   });
 }
