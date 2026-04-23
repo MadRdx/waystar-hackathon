@@ -46,7 +46,7 @@ export function GoogleOAuthButton({
       </div>
       <a
         href={authUrl}
-        className="inline-flex w-full items-center justify-center gap-3 rounded-full border border-line bg-white px-5 py-3 text-sm font-semibold text-foreground hover:border-brand hover:text-brand"
+        className="inline-flex w-full items-center justify-center gap-3 rounded-full border border-line bg-card px-5 py-3 text-sm font-semibold text-foreground hover:border-brand hover:text-brand"
       >
         <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
           <path
