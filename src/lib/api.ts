@@ -269,6 +269,24 @@ export async function updatePaymentPage(pageId: string, payload: Partial<Payment
   });
 }
 
+export async function getApprovalQueue(status: "PENDING" | "APPROVED" | "REJECTED" = "PENDING") {
+  return apiRequest<{ items: PaymentPage[] }>(`/payment-pages-approvals?approval_status=${status}`, {
+    sessionKind: "portal",
+  });
+}
+
+export async function decidePaymentPageApproval(
+  pageId: string,
+  action: "APPROVED" | "REJECTED",
+  note?: string,
+) {
+  return apiRequest<{ item: PaymentPage }>(`/payment-pages/${pageId}/approval`, {
+    method: "POST",
+    sessionKind: "portal",
+    body: { action, note: note || null },
+  });
+}
+
 export async function getPublicPaymentPage(slug: string) {
   return apiRequest<{ item: PaymentPage }>(`/public/payment-pages/${slug}`, {
     auth: false,

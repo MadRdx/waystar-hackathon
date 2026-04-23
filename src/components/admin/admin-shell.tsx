@@ -27,11 +27,45 @@ export function AdminShell({
   });
 
   const navItems = [
-    { href: "/", label: "Home" },
-    { href: basePath, label: "Dashboard" },
-    { href: `${basePath}/pages/new`, label: "Create Page" },
-    { href: `${basePath}/reports`, label: "Reports" },
+    { 
+      href: basePath, 
+      label: "Dashboard",
+      icon: (
+        <svg className="h-5 w-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+      )
+    },
+    { 
+      href: `${basePath}/pages/new`, 
+      label: "Create Page",
+      icon: (
+        <svg className="h-5 w-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+      )
+    },
+    { 
+      href: `${basePath}/reports`, 
+      label: "Reports",
+      icon: (
+        <svg className="h-5 w-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      )
+    },
   ];
+  if (role === "ADMIN") {
+    navItems.splice(2, 0, {
+      href: `${basePath}/approvals`,
+      label: "Approvals",
+      icon: (
+        <svg className="h-5 w-5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    });
+  }
 
   if (loading) {
     return (
@@ -60,7 +94,7 @@ export function AdminShell({
     <div className="min-h-screen px-4 py-4 lg:px-6">
       <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-7xl gap-4 lg:grid-cols-[260px_1fr]">
         <aside className="rounded-[2rem] border border-line bg-card p-6 shadow-[0_24px_80px_rgba(16,35,28,0.08)]">
-          <Link href="/" className="block">
+          <Link href={basePath} className="block">
             <span className="font-mono text-xs uppercase tracking-[0.28em] text-muted">
               Quick Payment Pages
             </span>
@@ -69,18 +103,22 @@ export function AdminShell({
 
           <nav className="mt-8 space-y-2">
             {navItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const isActive = item.href === basePath 
+                ? pathname === item.href 
+                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   className={clsx(
-                    "flex rounded-2xl border px-4 py-3 text-sm font-semibold",
+                    "flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition-all",
                     isActive
-                      ? "border-brand bg-brand text-white"
-                      : "border-transparent bg-white/65 text-foreground hover:border-line",
+                      ? "border-brand bg-brand text-white shadow-md"
+                      : "border-transparent bg-white/65 text-foreground hover:border-line hover:bg-white",
                   )}
                 >
+                  {item.icon}
                   {item.label}
                 </Link>
               );

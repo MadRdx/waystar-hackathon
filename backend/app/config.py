@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     mongodb_db_name: str = "qpp_platform"
     jwt_secret: str
     frontend_app_url: str = "http://localhost:3000"
-    allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    allowed_origins: str = "*"
     demo_admin_email: str
     demo_admin_password: str
     smtp_host: str | None = None
@@ -37,7 +37,10 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> list[str]:
-        return [part for part in self.allowed_origins.split(",") if part]
+        origins = [part for part in self.allowed_origins.split(",") if part]
+        if "*" in origins:
+            return ["*"]
+        return origins
 
     @property
     def smtp_enabled(self) -> bool:

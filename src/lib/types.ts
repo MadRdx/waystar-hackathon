@@ -5,6 +5,7 @@ export type TransactionStatus = "SUCCESS" | "FAILED" | "PENDING" | "REFUNDED";
 export type AppRole = "ADMIN" | "BUSINESS" | "CUSTOMER";
 export type PortalRole = "ADMIN" | "BUSINESS";
 export type CouponType = "PERCENT" | "FIXED";
+export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export interface SavedCustomerProfile {
   payer_name: string;
@@ -81,6 +82,11 @@ export interface PaymentPage {
   max_amount_cents?: number | null;
   email_template?: string | null;
   is_active: boolean;
+  approval_status: ApprovalStatus;
+  approval_note?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  submitted_at?: string | null;
   custom_fields: CustomField[];
   gl_codes: GLCode[];
   coupon_codes?: CouponCode[];

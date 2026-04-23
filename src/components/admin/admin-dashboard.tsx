@@ -88,6 +88,11 @@ export function AdminDashboard() {
           value={formatCurrency(summary?.average_amount_cents ?? 0)}
           note="Average successful payment amount"
         />
+        <StatCard
+          label="Pending Approval"
+          value={String(pages.filter((item) => item.approval_status === "PENDING").length)}
+          note="Business page submissions awaiting admin review"
+        />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
@@ -127,6 +132,17 @@ export function AdminDashboard() {
                         }`}
                       >
                         {page.is_active ? "Active" : "Disabled"}
+                      </span>
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          page.approval_status === "APPROVED"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : page.approval_status === "REJECTED"
+                              ? "bg-red-50 text-red-700"
+                              : "bg-amber-50 text-amber-700"
+                        }`}
+                      >
+                        {page.approval_status}
                       </span>
                     </div>
                     <p className="text-sm text-muted">{page.public_url}</p>

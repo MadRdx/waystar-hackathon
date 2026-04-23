@@ -31,6 +31,12 @@ class TransactionStatus(str, Enum):
     REFUNDED = "REFUNDED"
 
 
+class ApprovalStatus(str, Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
 class UserRole(str, Enum):
     ADMIN = "ADMIN"
     BUSINESS = "BUSINESS"
@@ -173,6 +179,17 @@ class PaymentPagePayload(BaseModel):
                 raise ValueError("Min and max amounts are required for range pages.")
             if self.min_amount_cents >= self.max_amount_cents:
                 raise ValueError("Minimum amount must be lower than maximum amount.")
+        return self
+
+
+class ApprovalDecisionPayload(BaseModel):
+    action: ApprovalStatus
+    note: str | None = Field(default=None, max_length=240)
+
+    @model_validator(mode="after")
+    def validate_action(self) -> "ApprovalDecisionPayload":
+        if self.action == ApprovalStatus.PENDING:
+            raise ValueError("Approval decision must be APPROVED or REJECTED.")
         return self
 
 
