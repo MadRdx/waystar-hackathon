@@ -151,7 +151,6 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const walletDetails = detectWalletProvider();
   const [cardElementError, setCardElementError] = useState<string | null>(null);
   const [walletDetails, setWalletDetails] = useState(DEFAULT_WALLET_DETAILS);
   const [walletAvailability, setWalletAvailability] = useState(DEFAULT_WALLET_AVAILABILITY);
@@ -742,113 +741,7 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
             </div>
 
             {paymentMethod === "CARD" ? (
-              <fieldset className="mt-5 grid gap-4 md:grid-cols-2">
-                <legend className="sr-only">Card Details</legend>
-                <div className="space-y-2 md:col-span-2">
-                  <label htmlFor="card_number" className="text-sm font-medium text-foreground">Card Number</label>
-                  <input
-                    id="card_number"
-                    value={form.card_number}
-                    onChange={(event) => {
-                      setForm((current) => ({ ...current, card_number: event.target.value }));
-                      if (errors.card_number) setErrors(e => ({ ...e, card_number: "" }));
-                    }}
-                    className={clsx(
-                      "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
-                      errors.card_number ? "border-red-500" : "border-line"
-                    )}
-                    aria-describedby="card-help"
-                    aria-invalid={!cardNumberLooksValid || !!errors.card_number}
-                  />
-                  <p
-                    id="card-help"
-                    className={clsx(
-                      "text-sm leading-7",
-                      cardNumberLooksValid ? "text-muted" : "text-red-500 font-medium",
-                    )}
-                  >
-                    {errors.card_number || (!cardNumberLooksValid 
-                      ? "The card number does not pass Luhn validation." 
-                      : "Use test card 4242 4242 4242 4242 for a success flow.")}
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="expiry_month" className="text-sm font-medium text-foreground">Expiration Month</label>
-                  <input
-                    id="expiry_month"
-                    type="number"
-                    min="1"
-                    max="12"
-                    value={form.expiry_month}
-                    onChange={(event) => {
-                      setForm((current) => ({ ...current, expiry_month: event.target.value }));
-                      if (errors.expiry_month) setErrors(e => ({ ...e, expiry_month: "" }));
-                    }}
-                    className={clsx(
-                      "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
-                      errors.expiry_month ? "border-red-500" : "border-line"
-                    )}
-                    aria-invalid={!!errors.expiry_month}
-                  />
-                  {errors.expiry_month ? <p className="text-sm text-red-500 font-medium">{errors.expiry_month}</p> : null}
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="expiry_year" className="text-sm font-medium text-foreground">Expiration Year</label>
-                  <input
-                    id="expiry_year"
-                    type="number"
-                    min="24"
-                    value={form.expiry_year}
-                    onChange={(event) => {
-                      setForm((current) => ({ ...current, expiry_year: event.target.value }));
-                      if (errors.expiry_year) setErrors(e => ({ ...e, expiry_year: "" }));
-                    }}
-                    className={clsx(
-                      "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
-                      errors.expiry_year ? "border-red-500" : "border-line"
-                    )}
-                    aria-describedby="expiry-help"
-                    aria-invalid={!expiryLooksValid || !!errors.expiry_year}
-                  />
-                  {errors.expiry_year || !expiryLooksValid ? (
-                    <p id="expiry-help" className="text-sm text-red-500 font-medium">{errors.expiry_year || "Expiration must be in the future."}</p>
-                  ) : null}
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="cvv" className="text-sm font-medium text-foreground">CVV</label>
-                  <input
-                    id="cvv"
-                    value={form.cvv}
-                    onChange={(event) => {
-                      setForm((current) => ({ ...current, cvv: event.target.value }));
-                      if (errors.cvv) setErrors(e => ({ ...e, cvv: "" }));
-                    }}
-                    className={clsx(
-                      "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
-                      errors.cvv ? "border-red-500" : "border-line"
-                    )}
-                    aria-invalid={!!errors.cvv}
-                  />
-                  {errors.cvv ? <p className="text-sm text-red-500 font-medium">{errors.cvv}</p> : null}
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="billing_zip" className="text-sm font-medium text-foreground">Billing ZIP</label>
-                  <input
-                    id="billing_zip"
-                    value={form.billing_zip}
-                    onChange={(event) => {
-                      setForm((current) => ({ ...current, billing_zip: event.target.value }));
-                      if (errors.billing_zip) setErrors(e => ({ ...e, billing_zip: "" }));
-                    }}
-                    className={clsx(
-                      "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
-                      errors.billing_zip ? "border-red-500" : "border-line"
-                    )}
-                    aria-invalid={!!errors.billing_zip}
-                  />
-                  {errors.billing_zip ? <p className="text-sm text-red-500 font-medium">{errors.billing_zip}</p> : null}
-                </div>
-              </fieldset>
+
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 {stripeCardEnabled ? (
                   <label className="space-y-2 md:col-span-2">
@@ -1050,15 +943,7 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
                   <p id="ach-routing-help" className={clsx("text-sm", (!achRoutingLooksValid || errors.ach_routing_number) ? "text-red-500 font-medium" : "hidden")}>
                     {errors.ach_routing_number || "Routing number checksum is invalid."}
                   </p>
-                      }))
-                    }
-                    className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                    aria-describedby={!achRoutingLooksValid ? "ach-routing-help" : undefined}
-                    aria-invalid={!achRoutingLooksValid}
-                  />
-                  {!achRoutingLooksValid ? (
-                    <p id="ach-routing-help" className="text-sm text-red-600">Routing number checksum is invalid.</p>
-                  ) : null}
+
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="ach_account_number" className="text-sm font-medium text-foreground">Account Number</label>
