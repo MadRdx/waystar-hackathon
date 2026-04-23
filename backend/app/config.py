@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     mongodb_db_name: str = "qpp_platform"
     jwt_secret: str
     frontend_app_url: str = "http://localhost:3000"
-    allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    allowed_origins: str = "*"
     demo_admin_email: str
     demo_admin_password: str
     smtp_host: str | None = None
@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_pass: str | None = None
     smtp_from_email: str = "Quick Payment Pages <no-reply@quickpay.local>"
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    stripe_secret_key: str | None = None
+    stripe_currency: str = "usd"
+    stripe_webhook_secret: str | None = None
 
     @field_validator("allowed_origins")
     @classmethod
@@ -32,11 +37,18 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> list[str]:
-        return [part for part in self.allowed_origins.split(",") if part]
+        origins = [part for part in self.allowed_origins.split(",") if part]
+        if "*" in origins:
+            return ["*"]
+        return origins
 
     @property
     def smtp_enabled(self) -> bool:
         return bool(self.smtp_host and self.smtp_from_email)
+
+    @property
+    def stripe_enabled(self) -> bool:
+        return bool(self.stripe_secret_key)
 
 
 @lru_cache

@@ -79,18 +79,22 @@ async def get_summary(
     )
     transactions = await db.transactions.find(query).to_list(length=500)
 
-    successful = [transaction for transaction in transactions if transaction["status"] == "SUCCESS"]
+    settled = [transaction for transaction in transactions if transaction["status"] in {"SUCCESS", "REFUNDED"}]
     non_failed = [transaction for transaction in transactions if transaction["status"] != "FAILED"]
 
     gl_breakdown: dict[str, int] = {}
     payment_method_breakdown: dict[str, int] = {}
     for transaction in non_failed:
         payment_method_breakdown[transaction["payment_method"]] = payment_method_breakdown.get(transaction["payment_method"], 0) + 1
+        net_amount = transaction["amount_cents"] - int(transaction.get("refunded_amount_cents", 0))
         for code in transaction.get("gl_codes_snapshot", []):
-            gl_breakdown[code] = gl_breakdown.get(code, 0) + transaction["amount_cents"]
+            gl_breakdown[code] = gl_breakdown.get(code, 0) + (net_amount if net_amount > 0 else 0)
 
-    total_amount = sum(transaction["amount_cents"] for transaction in successful)
-    average_amount = int(total_amount / len(successful)) if successful else 0
+    total_amount = sum(
+        max(0, transaction["amount_cents"] - int(transaction.get("refunded_amount_cents", 0)))
+        for transaction in settled
+    )
+    average_amount = int(total_amount / len(settled)) if settled else 0
 
     return {
         "item": {
@@ -140,6 +144,7 @@ async def export_transactions_csv(
             "payer_email": transaction["payer_email"],
             "original_amount_cents": transaction.get("original_amount_cents", transaction["amount_cents"]),
             "discount_amount_cents": transaction.get("discount_amount_cents", 0),
+            "refunded_amount_cents": transaction.get("refunded_amount_cents", 0),
             "amount_cents": transaction["amount_cents"],
             "coupon_code": transaction.get("coupon_code"),
             "payment_method": transaction["payment_method"],

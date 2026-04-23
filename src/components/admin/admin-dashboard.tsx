@@ -88,6 +88,11 @@ export function AdminDashboard() {
           value={formatCurrency(summary?.average_amount_cents ?? 0)}
           note="Average successful payment amount"
         />
+        <StatCard
+          label="Pending Approval"
+          value={String(pages.filter((item) => item.approval_status === "PENDING").length)}
+          note="Business page submissions awaiting admin review"
+        />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
@@ -103,7 +108,7 @@ export function AdminDashboard() {
             </div>
             <Link
               href={`${basePath}/pages/new`}
-              className="inline-flex rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white hover:bg-brand-strong"
+              className="inline-flex rounded-full bg-brand px-5 py-3 text-sm font-semibold text-brand-foreground hover:bg-brand-strong"
             >
               Create a New Page
             </Link>
@@ -113,7 +118,7 @@ export function AdminDashboard() {
             {pages.map((page) => (
               <div
                 key={page.id}
-                className="rounded-[1.6rem] border border-line bg-white/75 p-5"
+                className="rounded-[1.6rem] border border-line bg-card/75 p-5"
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="space-y-2">
@@ -127,6 +132,17 @@ export function AdminDashboard() {
                         }`}
                       >
                         {page.is_active ? "Active" : "Disabled"}
+                      </span>
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          page.approval_status === "APPROVED"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : page.approval_status === "REJECTED"
+                              ? "bg-red-50 text-red-700"
+                              : "bg-amber-50 text-amber-700"
+                        }`}
+                      >
+                        {page.approval_status}
                       </span>
                     </div>
                     <p className="text-sm text-muted">{page.public_url}</p>
@@ -175,7 +191,7 @@ export function AdminDashboard() {
             <div className="mt-5 space-y-4">
               {Object.entries(summary?.payment_method_breakdown ?? {}).length ? (
                 Object.entries(summary?.payment_method_breakdown ?? {}).map(([method, count]) => (
-                  <div key={method} className="rounded-3xl border border-line bg-white/70 p-4">
+                  <div key={method} className="rounded-3xl border border-line bg-card/70 p-4">
                     <p className="text-sm font-semibold text-foreground">{titleCase(method)}</p>
                     <p className="mt-2 text-2xl font-semibold text-brand">{count}</p>
                   </div>
@@ -193,7 +209,7 @@ export function AdminDashboard() {
             <div className="mt-5 space-y-4">
               {logs.length ? (
                 logs.map((log) => (
-                  <div key={log.id} className="rounded-3xl border border-line bg-white/70 p-4">
+                  <div key={log.id} className="rounded-3xl border border-line bg-card/70 p-4">
                     <p className="text-sm font-semibold text-foreground">{log.subject}</p>
                     <p className="mt-1 text-sm text-muted">{log.to_email}</p>
                     <p className="mt-2 text-xs uppercase tracking-[0.2em] text-muted">

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { loginPortal, setStoredSession } from "@/lib/api";
 import type { PortalRole } from "@/lib/types";
+import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
 
 export function LoginForm({
   role = "ADMIN",
@@ -52,7 +53,7 @@ export function LoginForm({
     <main className="min-h-screen px-6 py-8 lg:px-10">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-6xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="rounded-[2rem] border border-line bg-card p-8 shadow-[0_26px_90px_rgba(16,35,28,0.08)] lg:p-10">
-          <span className="inline-flex rounded-full border border-line bg-white/75 px-4 py-2 font-mono text-xs uppercase tracking-[0.24em] text-muted">
+          <span className="inline-flex rounded-full border border-line bg-card/75 px-4 py-2 font-mono text-xs uppercase tracking-[0.24em] text-muted">
             {portalLabel}
           </span>
           <h1 className="mt-6 text-4xl font-semibold tracking-tight text-foreground">
@@ -66,7 +67,7 @@ export function LoginForm({
               : "Admins can oversee every business workspace, create pages, review reporting, and support the full payment platform."}
           </p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-3xl border border-line bg-white/75 p-5">
+            <div className="rounded-3xl border border-line bg-card/75 p-5">
               <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted">
                 Stack
               </p>
@@ -74,7 +75,7 @@ export function LoginForm({
                 React frontend, FastAPI REST API, and MongoDB-backed page, user, and transaction documents.
               </p>
             </div>
-            <div className="rounded-3xl border border-line bg-white/75 p-5">
+            <div className="rounded-3xl border border-line bg-card/75 p-5">
               <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted">
                 Demo Access
               </p>
@@ -105,7 +106,7 @@ export function LoginForm({
           </div>
         </section>
 
-        <section className="rounded-[2rem] border border-line bg-white/85 p-8 shadow-[0_26px_90px_rgba(16,35,28,0.08)] lg:p-10">
+        <section className="rounded-[2rem] border border-line bg-card/85 p-8 shadow-[0_26px_90px_rgba(16,35,28,0.08)] lg:p-10">
           <h2 className="text-2xl font-semibold text-foreground">Sign in</h2>
           <p className="mt-2 text-sm leading-7 text-muted">
             Use the seeded {isBusiness ? "business" : "admin"} email and password from your local setup.
@@ -148,13 +149,14 @@ export function LoginForm({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex w-full items-center justify-center rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex w-full items-center justify-center rounded-full bg-brand px-5 py-3 text-sm font-semibold text-brand-foreground hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
             >
               {isSubmitting
                 ? "Signing you in..."
                 : `Continue to ${isBusiness ? "Business" : "Admin"} Portal`}
             </button>
           </form>
+          <GoogleOAuthButton expectedRole={role} />
         </section>
       </div>
     </main>

@@ -105,7 +105,7 @@ export function getStoredSession<TUser extends SessionUser = SessionUser>(
     return null;
   }
 
-  const stored = window.localStorage.getItem(SESSION_STORAGE_KEYS[kind]);
+  const stored = window.sessionStorage.getItem(SESSION_STORAGE_KEYS[kind]);
   if (!stored) {
     return null;
   }
@@ -118,11 +118,11 @@ export function getStoredSession<TUser extends SessionUser = SessionUser>(
 }
 
 export function setStoredSession(kind: SessionKind, session: Session) {
-  window.localStorage.setItem(SESSION_STORAGE_KEYS[kind], JSON.stringify(session));
+  window.sessionStorage.setItem(SESSION_STORAGE_KEYS[kind], JSON.stringify(session));
 }
 
 export function clearStoredSession(kind: SessionKind) {
-  window.localStorage.removeItem(SESSION_STORAGE_KEYS[kind]);
+  window.sessionStorage.removeItem(SESSION_STORAGE_KEYS[kind]);
 }
 
 export function getRememberedPayer(slug: string): RememberedPayerDetails | null {
@@ -212,6 +212,21 @@ export async function getCurrentCustomer() {
   });
 }
 
+export async function loginWithGoogle(
+  code: string,
+  redirectUri: string,
+  expectedRole?: string,
+) {
+  return apiRequest<{ token: string; user: AdminSession["user"] | CustomerSession["user"] }>(
+    "/auth/oauth/google",
+    {
+      method: "POST",
+      auth: false,
+      body: { code, redirect_uri: redirectUri, expected_role: expectedRole },
+    },
+  );
+}
+
 export async function getCustomerDashboard() {
   return apiRequest<{ item: CustomerDashboard }>("/customers/me/dashboard", {
     sessionKind: "customer",
@@ -254,8 +269,32 @@ export async function updatePaymentPage(pageId: string, payload: Partial<Payment
   });
 }
 
+export async function getApprovalQueue(status: "PENDING" | "APPROVED" | "REJECTED" = "PENDING") {
+  return apiRequest<{ items: PaymentPage[] }>(`/payment-pages-approvals?approval_status=${status}`, {
+    sessionKind: "portal",
+  });
+}
+
+export async function decidePaymentPageApproval(
+  pageId: string,
+  action: "APPROVED" | "REJECTED",
+  note?: string,
+) {
+  return apiRequest<{ item: PaymentPage }>(`/payment-pages/${pageId}/approval`, {
+    method: "POST",
+    sessionKind: "portal",
+    body: { action, note: note || null },
+  });
+}
+
 export async function getPublicPaymentPage(slug: string) {
   return apiRequest<{ item: PaymentPage }>(`/public/payment-pages/${slug}`, {
+    auth: false,
+  });
+}
+
+export async function getPublicPaymentPages() {
+  return apiRequest<{ items: PaymentPage[] }>("/public/payment-pages", {
     auth: false,
   });
 }
@@ -269,6 +308,32 @@ export async function submitPayment(slug: string, payload: Record<string, unknow
       body: payload,
     },
   );
+}
+
+export async function createStripePaymentIntent(
+  slug: string,
+  payload: {
+    payer_name: string;
+    payer_email: string;
+    amount_cents?: number;
+    coupon_code?: string;
+  },
+) {
+  return apiRequest<{
+    item: {
+      payment_intent_id: string;
+      client_secret: string;
+      amount_cents: number;
+      original_amount_cents: number;
+      discount_amount_cents: number;
+      coupon_code?: string | null;
+      coupon_description?: string | null;
+    };
+  }>(`/public/payment-pages/${slug}/stripe/intent`, {
+    method: "POST",
+    auth: false,
+    body: payload,
+  });
 }
 
 export async function getPublicTransaction(publicId: string) {

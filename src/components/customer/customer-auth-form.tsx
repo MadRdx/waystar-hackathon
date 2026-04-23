@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { loginCustomer, registerCustomer, setStoredSession } from "@/lib/api";
+import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
 
 export function CustomerAuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
@@ -52,7 +53,7 @@ export function CustomerAuthForm({ mode }: { mode: "login" | "register" }) {
     <main className="min-h-screen px-6 py-8 lg:px-10">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-6xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="rounded-[2rem] border border-line bg-card p-8 shadow-[0_26px_90px_rgba(16,35,28,0.08)] lg:p-10">
-          <span className="inline-flex rounded-full border border-line bg-white/75 px-4 py-2 font-mono text-xs uppercase tracking-[0.24em] text-muted">
+          <span className="inline-flex rounded-full border border-line bg-card/75 px-4 py-2 font-mono text-xs uppercase tracking-[0.24em] text-muted">
             Customer Account
           </span>
           <h1 className="mt-6 text-4xl font-semibold tracking-tight text-foreground">
@@ -64,7 +65,7 @@ export function CustomerAuthForm({ mode }: { mode: "login" | "register" }) {
             Customer accounts layer on top of the existing public payment pages. They do not replace guest checkout, but they let returning payers save their profile and see their payment history.
           </p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-3xl border border-line bg-white/75 p-5">
+            <div className="rounded-3xl border border-line bg-card/75 p-5">
               <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted">
                 Keep It Fast
               </p>
@@ -72,7 +73,7 @@ export function CustomerAuthForm({ mode }: { mode: "login" | "register" }) {
                 Your account can prefill payer details on future payments while guest checkout remains available for everyone else.
               </p>
             </div>
-            <div className="rounded-3xl border border-line bg-white/75 p-5">
+            <div className="rounded-3xl border border-line bg-card/75 p-5">
               <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted">
                 Recent Activity
               </p>
@@ -103,7 +104,7 @@ export function CustomerAuthForm({ mode }: { mode: "login" | "register" }) {
           </div>
         </section>
 
-        <section className="rounded-[2rem] border border-line bg-white/85 p-8 shadow-[0_26px_90px_rgba(16,35,28,0.08)] lg:p-10">
+        <section className="rounded-[2rem] border border-line bg-card/85 p-8 shadow-[0_26px_90px_rgba(16,35,28,0.08)] lg:p-10">
           <h2 className="text-2xl font-semibold text-foreground">
             {isRegister ? "Create your account" : "Sign in"}
           </h2>
@@ -173,7 +174,7 @@ export function CustomerAuthForm({ mode }: { mode: "login" | "register" }) {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex w-full items-center justify-center rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex w-full items-center justify-center rounded-full bg-brand px-5 py-3 text-sm font-semibold text-brand-foreground hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
             >
               {isSubmitting
                 ? isRegister
@@ -184,6 +185,10 @@ export function CustomerAuthForm({ mode }: { mode: "login" | "register" }) {
                   : "Continue to Customer Dashboard"}
             </button>
           </form>
+          <GoogleOAuthButton
+            expectedRole="CUSTOMER"
+            label={isRegister ? "Sign up with Google" : "Sign in with Google"}
+          />
         </section>
       </div>
     </main>

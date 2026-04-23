@@ -109,7 +109,7 @@ export function PaymentSuccessView({
             </div>
           ) : null}
 
-          <div className="mt-8 rounded-[1.6rem] border border-line bg-white/75 p-5">
+          <div className="mt-8 rounded-[1.6rem] border border-line bg-card/75 p-5">
             <p className="text-sm font-semibold text-foreground">Processor message</p>
             <p className="mt-2 text-sm leading-7 text-muted">
               {transaction.processor_message || "Sandbox transaction recorded."}
@@ -120,7 +120,7 @@ export function PaymentSuccessView({
             <h2 className="text-xl font-semibold text-foreground">Submitted details</h2>
             <div className="mt-4 space-y-3">
               {transaction.field_responses.map((field) => (
-                <div key={field.field_id} className="rounded-3xl border border-line bg-white/75 p-4">
+                <div key={field.field_id} className="rounded-3xl border border-line bg-card/75 p-4">
                   <p className="text-sm font-semibold text-foreground">{field.field_label}</p>
                   <p className="mt-2 text-sm leading-7 text-muted">{String(field.value ?? "")}</p>
                 </div>
@@ -131,7 +131,7 @@ export function PaymentSuccessView({
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href={`/pay/${slug}`}
-              className="inline-flex rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white hover:bg-brand-strong"
+              className="inline-flex rounded-full bg-brand px-5 py-3 text-sm font-semibold text-brand-foreground hover:bg-brand-strong"
             >
               Return to Payment Page
             </Link>
@@ -150,7 +150,7 @@ export function PaymentSuccessView({
 
 function ReceiptCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[1.6rem] border border-line bg-white/75 p-5">
+    <div className="rounded-[1.6rem] border border-line bg-card/75 p-5">
       <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted">{label}</p>
       <p className="mt-3 text-lg font-semibold text-foreground">{value}</p>
     </div>
