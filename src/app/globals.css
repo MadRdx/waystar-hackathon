@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f5efe2;
+  --foreground: #10231c;
+  --card: rgba(255, 255, 255, 0.9);
+  --card-strong: #ffffff;
+  --muted: #5d6d66;
+  --muted-surface: rgba(255, 255, 255, 0.72);
+  --line: rgba(16, 35, 28, 0.12);
+  --brand: #0f766e;
+  --brand-strong: #0c5e58;
+  --accent: #f59e0b;
+  --focus: #f97316;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-strong: var(--card-strong);
+  --color-muted: var(--muted);
+  --color-muted-surface: var(--muted-surface);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-plex-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(245, 158, 11, 0.22), transparent 24%),
+    radial-gradient(circle at top right, rgba(15, 118, 110, 0.18), transparent 26%),
+    linear-gradient(180deg, #f8f1e3 0%, #eef4ef 45%, #f5efe2 100%);
+}
+
+::selection {
+  background: rgba(15, 118, 110, 0.22);
+}
+
+a,
+button {
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 150ms ease;
+}
+
+button,
+input,
+select,
+textarea {
+  outline-color: var(--focus);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
