@@ -1,16 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
+import { getStoredSession } from "@/lib/api";
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [homeHref, setHomeHref] = useState("/");
   const pathname = usePathname();
 
+  useEffect(() => {
+    const portalSession = getStoredSession("portal");
+    if (portalSession?.user) {
+      setHomeHref(portalSession.user.role === "ADMIN" ? "/admin" : "/business");
+      return;
+    }
+    
+    const customerSession = getStoredSession("customer");
+    if (customerSession?.user) {
+      setHomeHref("/customer");
+      return;
+    }
+    
+    setHomeHref("/");
+  }, [pathname]);
+
   const navLinks = [
-    { href: "/", label: "Home" },
+    { href: homeHref, label: "Home" },
     { href: "/pay/yoga-class", label: "Demo Checkout" },
     { href: "/login", label: "Provider Login" },
     { href: "/business/login", label: "Business Login" },
@@ -19,8 +37,8 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-line bg-card/70 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-10">
-        <Link href="/" className="flex items-center gap-2" onClick={() => setIsOpen(false)}>
-          <span className="h-6 w-6 rounded-full bg-brand flex items-center justify-center text-white font-bold text-xs">
+        <Link href={homeHref} className="flex items-center gap-2" onClick={() => setIsOpen(false)}>
+          <span className="h-6 w-6 rounded-full bg-brand flex items-center justify-center text-brand-foreground font-bold text-xs">
             Q
           </span>
           <span className="font-mono text-xs uppercase tracking-widest text-foreground font-semibold hidden sm:inline-block">
@@ -70,7 +88,7 @@ export function Navbar() {
           </button>
           <Link
             href="/login"
-            className="ml-2 rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-strong"
+            className="ml-2 rounded-full bg-brand px-5 py-2 text-sm font-semibold text-brand-foreground shadow-sm transition-all hover:bg-brand-strong"
           >
             Get Started
           </Link>
@@ -128,7 +146,7 @@ export function Navbar() {
                   }
                 }
               }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-white/50 px-4 py-3 text-sm font-semibold text-foreground"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-card/50 px-4 py-3 text-sm font-semibold text-foreground"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
@@ -138,7 +156,7 @@ export function Navbar() {
             <Link
               href="/login"
               onClick={() => setIsOpen(false)}
-              className="mt-2 block rounded-xl bg-brand px-4 py-3 text-center text-sm font-semibold text-white shadow-sm"
+              className="mt-2 block rounded-xl bg-brand px-4 py-3 text-center text-sm font-semibold text-brand-foreground shadow-sm"
             >
               Get Started
             </Link>

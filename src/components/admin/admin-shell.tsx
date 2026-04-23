@@ -114,8 +114,8 @@ export function AdminShell({
                   className={clsx(
                     "flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold transition-all",
                     isActive
-                      ? "border-brand bg-brand text-white shadow-md"
-                      : "border-transparent bg-white/65 text-foreground hover:border-line hover:bg-white",
+                      ? "border-brand bg-brand text-brand-foreground shadow-md"
+                      : "border-transparent bg-card/65 text-foreground hover:border-line hover:bg-card",
                   )}
                 >
                   {item.icon}
@@ -125,7 +125,7 @@ export function AdminShell({
             })}
           </nav>
 
-          <div className="mt-8 rounded-3xl border border-line bg-white/70 p-4">
+          <div className="mt-8 rounded-3xl border border-line bg-card/70 p-4">
             <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted">
               Signed In
             </p>
@@ -164,7 +164,7 @@ export function AdminShell({
               </div>
               <Link
                 href="/pay/yoga-class"
-                className="inline-flex rounded-full border border-line bg-white px-5 py-3 text-sm font-semibold text-foreground hover:border-brand hover:text-brand"
+                className="inline-flex rounded-full border border-line bg-card px-5 py-3 text-sm font-semibold text-foreground hover:border-brand hover:text-brand"
               >
                 View Demo Checkout
               </Link>

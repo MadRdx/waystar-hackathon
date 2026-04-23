@@ -150,6 +150,8 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const walletDetails = detectWalletProvider();
   const [cardElementError, setCardElementError] = useState<string | null>(null);
   const [walletDetails, setWalletDetails] = useState(DEFAULT_WALLET_DETAILS);
   const [walletAvailability, setWalletAvailability] = useState(DEFAULT_WALLET_AVAILABILITY);
@@ -260,6 +262,60 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
     if (!page) {
       return;
     }
+
+    const newErrors: Record<string, string> = {};
+
+    if (!form.payer_name.trim()) newErrors.payer_name = "Payer name is required.";
+    if (!form.payer_email.trim() || !/^\S+@\S+\.\S+$/.test(form.payer_email)) {
+      newErrors.payer_email = "A valid email address is required.";
+    }
+
+    const amountCents =
+      page.amount_mode === "FIXED"
+        ? page.fixed_amount_cents ?? 0
+        : Math.round(Number(form.amount_input || "0") * 100);
+
+    if (page.amount_mode !== "FIXED") {
+      if (amountCents <= 0 || isNaN(amountCents)) newErrors.amount_input = "Amount must be greater than zero.";
+      if (page.amount_mode === "RANGE") {
+        if (page.min_amount_cents && amountCents < page.min_amount_cents) newErrors.amount_input = `Minimum amount is ${formatCurrency(page.min_amount_cents)}`;
+        if (page.max_amount_cents && amountCents > page.max_amount_cents) newErrors.amount_input = `Maximum amount is ${formatCurrency(page.max_amount_cents)}`;
+      }
+    }
+
+    if (paymentMethod === "CARD") {
+      if (!form.card_number || !luhnIsValid(form.card_number)) newErrors.card_number = "Valid card number is required.";
+      if (!form.expiry_month) newErrors.expiry_month = "Expiration month is required.";
+      if (!form.expiry_year) newErrors.expiry_year = "Expiration year is required.";
+      if (form.expiry_month && form.expiry_year && !expiryIsValid(Number(form.expiry_month), Number(form.expiry_year))) {
+        newErrors.expiry_month = "Expiration date must be in the future.";
+        newErrors.expiry_year = "Expiration date must be in the future.";
+      }
+      if (!form.cvv || form.cvv.length < 3) newErrors.cvv = "Valid CVV is required.";
+      if (!form.billing_zip) newErrors.billing_zip = "Billing ZIP is required.";
+    }
+
+    if (paymentMethod === "ACH") {
+      if (!form.ach_routing_number || !routingNumberIsValid(form.ach_routing_number)) newErrors.ach_routing_number = "Valid routing number is required.";
+      if (!form.ach_account_number) newErrors.ach_account_number = "Account number is required.";
+      if (!form.ach_authorized) newErrors.ach_authorized = "You must authorize the ACH transaction.";
+    }
+
+    page.custom_fields.forEach(field => {
+      if (field.is_required && field.type !== "CHECKBOX") {
+        if (!form.custom_field_values[field.key] || String(form.custom_field_values[field.key]).trim() === "") {
+          newErrors[field.key] = `${field.label} is required.`;
+        }
+      }
+    });
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      setError("Please fix the errors in the form before submitting.");
+      return;
+    }
+    
+    setErrors({});
 
     const currentPage = page;
     setSubmitting(true);
@@ -373,7 +429,7 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
               >
                 Quick Payment Pages
               </Link>
-              <span className="rounded-full border border-line bg-white px-4 py-2 text-xs font-semibold text-muted">
+              <span className="rounded-full border border-line bg-card px-4 py-2 text-xs font-semibold text-muted">
                 Sandbox mode
               </span>
             </div>
@@ -409,12 +465,12 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
           </div>
 
           {page.header_message ? (
-            <div className="mt-6 rounded-[1.6rem] border border-line bg-white/75 px-5 py-4 text-sm leading-7 text-muted">
+            <div className="mt-6 rounded-[1.6rem] border border-line bg-card/75 px-5 py-4 text-sm leading-7 text-muted">
               {page.header_message}
             </div>
           ) : null}
 
-          <div className="mt-6 rounded-[1.6rem] border border-line bg-white/75 px-5 py-4">
+          <div className="mt-6 rounded-[1.6rem] border border-line bg-card/75 px-5 py-4">
             {customerAccount ? (
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
@@ -457,7 +513,7 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
                 <div className="flex flex-wrap gap-3">
                   <Link
                     href={`/customer/login?next=${encodeURIComponent(`/pay/${slug}`)}`}
-                    className="inline-flex rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-strong"
+                    className="inline-flex rounded-full bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground hover:bg-brand-strong"
                   >
                     Customer Login
                   </Link>
@@ -478,11 +534,18 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
               <input
                 id="payer_name"
                 value={form.payer_name}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, payer_name: event.target.value }))
-                }
-                className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                onChange={(event) => {
+                  setForm((current) => ({ ...current, payer_name: event.target.value }));
+                  if (errors.payer_name) setErrors(e => ({ ...e, payer_name: "" }));
+                }}
+                className={clsx(
+                  "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                  errors.payer_name ? "border-red-500" : "border-line"
+                )}
+                aria-invalid={!!errors.payer_name}
+                aria-describedby={errors.payer_name ? "error-payer_name" : undefined}
               />
+              {errors.payer_name ? <p id="error-payer_name" className="text-sm text-red-500 font-medium">{errors.payer_name}</p> : null}
             </div>
 
             <div className="space-y-2">
@@ -491,11 +554,18 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
                 id="payer_email"
                 type="email"
                 value={form.payer_email}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, payer_email: event.target.value }))
-                }
-                className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                onChange={(event) => {
+                  setForm((current) => ({ ...current, payer_email: event.target.value }));
+                  if (errors.payer_email) setErrors(e => ({ ...e, payer_email: "" }));
+                }}
+                className={clsx(
+                  "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                  errors.payer_email ? "border-red-500" : "border-line"
+                )}
+                aria-invalid={!!errors.payer_email}
+                aria-describedby={errors.payer_email ? "error-payer_email" : undefined}
               />
+              {errors.payer_email ? <p id="error-payer_email" className="text-sm text-red-500 font-medium">{errors.payer_email}</p> : null}
             </div>
 
             <div className={clsx("space-y-2", page.accepts_coupons ? "" : "lg:col-span-2")}>
@@ -507,14 +577,19 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
                 step="0.01"
                 disabled={page.amount_mode === "FIXED"}
                 value={form.amount_input}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, amount_input: event.target.value }))
-                }
-                className="w-full rounded-2xl border border-line bg-white px-4 py-3 disabled:bg-background/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                onChange={(event) => {
+                  setForm((current) => ({ ...current, amount_input: event.target.value }));
+                  if (errors.amount_input) setErrors(e => ({ ...e, amount_input: "" }));
+                }}
+                className={clsx(
+                  "w-full rounded-2xl border bg-card px-4 py-3 disabled:bg-background/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                  errors.amount_input ? "border-red-500" : "border-line"
+                )}
+                aria-invalid={!!errors.amount_input}
                 aria-describedby="amount-help"
               />
-              <p id="amount-help" className="text-sm leading-7 text-muted">
-                {amountHint}
+              <p id="amount-help" className={clsx("text-sm leading-7", errors.amount_input ? "text-red-500 font-medium" : "text-muted")}>
+                {errors.amount_input || amountHint}
               </p>
             </div>
 
@@ -531,7 +606,7 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
                     }))
                   }
                   placeholder="SAVE10"
-                  className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                  className="w-full rounded-2xl border border-line bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                   aria-describedby="coupon-help"
                 />
                 <p id="coupon-help" className="text-sm leading-7 text-muted">
@@ -563,36 +638,46 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
                       }
                       value={String(form.custom_field_values[field.key] ?? "")}
                       placeholder={field.placeholder ?? ""}
-                      onChange={(event) =>
+                      onChange={(event) => {
                         setForm((current) => ({
                           ...current,
                           custom_field_values: {
                             ...current.custom_field_values,
                             [field.key]: event.target.value,
                           },
-                        }))
-                      }
+                        }));
+                        if (errors[field.key]) setErrors(e => ({ ...e, [field.key]: "" }));
+                      }}
                       id={`field-${field.key}`}
-                      className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                      aria-describedby={field.helper_text ? `field-help-${field.key}` : undefined}
+                      className={clsx(
+                        "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                        errors[field.key] ? "border-red-500" : "border-line"
+                      )}
+                      aria-invalid={!!errors[field.key]}
+                      aria-describedby={errors[field.key] ? `error-${field.key}` : field.helper_text ? `field-help-${field.key}` : undefined}
                     />
                   ) : null}
 
                   {field.type === "DROPDOWN" ? (
                     <select
                       value={String(form.custom_field_values[field.key] ?? "")}
-                      onChange={(event) =>
+                      onChange={(event) => {
                         setForm((current) => ({
                           ...current,
                           custom_field_values: {
                             ...current.custom_field_values,
                             [field.key]: event.target.value,
                           },
-                        }))
-                      }
+                        }));
+                        if (errors[field.key]) setErrors(e => ({ ...e, [field.key]: "" }));
+                      }}
                       id={`field-${field.key}`}
-                      className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                      aria-describedby={field.helper_text ? `field-help-${field.key}` : undefined}
+                      className={clsx(
+                        "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                        errors[field.key] ? "border-red-500" : "border-line"
+                      )}
+                      aria-invalid={!!errors[field.key]}
+                      aria-describedby={errors[field.key] ? `error-${field.key}` : field.helper_text ? `field-help-${field.key}` : undefined}
                     >
                       <option value="">Select an option</option>
                       {field.options.map((option) => (
@@ -604,7 +689,7 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
                   ) : null}
 
                   {field.type === "CHECKBOX" ? (
-                    <label className="flex items-center gap-3 rounded-2xl border border-line bg-white px-4 py-3">
+                    <label className="flex items-center gap-3 rounded-2xl border border-line bg-card px-4 py-3">
                       <input
                         type="checkbox"
                         checked={Boolean(form.custom_field_values[field.key])}
@@ -629,12 +714,15 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
                   {field.helper_text && field.type !== "CHECKBOX" ? (
                     <p id={`field-help-${field.key}`} className="text-sm leading-7 text-muted">{field.helper_text}</p>
                   ) : null}
+                  {errors[field.key] ? (
+                    <p id={`error-${field.key}`} className="text-sm text-red-500 font-medium">{errors[field.key]}</p>
+                  ) : null}
                 </div>
               ))}
           </div>
 
-          <div className="mt-10">
-            <p className="text-sm font-medium text-foreground">Payment Method</p>
+          <fieldset className="mt-10">
+            <legend className="text-sm font-medium text-foreground">Payment Method</legend>
             <div className="mt-3 flex flex-wrap gap-3">
               {(["CARD", "WALLET", "ACH"] as PaymentMethod[]).map((method) => (
                 <button
@@ -644,8 +732,8 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
                   className={clsx(
                     "rounded-full border px-4 py-2 text-sm font-semibold",
                     paymentMethod === method
-                      ? "border-brand bg-brand text-white"
-                      : "border-line bg-white text-foreground hover:border-brand hover:text-brand",
+                      ? "border-brand bg-brand text-brand-foreground"
+                      : "border-line bg-card text-foreground hover:border-brand hover:text-brand",
                   )}
                 >
                   {method === "ACH" ? "ACH / Bank" : method === "WALLET" ? "Wallet" : "Card"}
@@ -654,6 +742,113 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
             </div>
 
             {paymentMethod === "CARD" ? (
+              <fieldset className="mt-5 grid gap-4 md:grid-cols-2">
+                <legend className="sr-only">Card Details</legend>
+                <div className="space-y-2 md:col-span-2">
+                  <label htmlFor="card_number" className="text-sm font-medium text-foreground">Card Number</label>
+                  <input
+                    id="card_number"
+                    value={form.card_number}
+                    onChange={(event) => {
+                      setForm((current) => ({ ...current, card_number: event.target.value }));
+                      if (errors.card_number) setErrors(e => ({ ...e, card_number: "" }));
+                    }}
+                    className={clsx(
+                      "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                      errors.card_number ? "border-red-500" : "border-line"
+                    )}
+                    aria-describedby="card-help"
+                    aria-invalid={!cardNumberLooksValid || !!errors.card_number}
+                  />
+                  <p
+                    id="card-help"
+                    className={clsx(
+                      "text-sm leading-7",
+                      cardNumberLooksValid ? "text-muted" : "text-red-500 font-medium",
+                    )}
+                  >
+                    {errors.card_number || (!cardNumberLooksValid 
+                      ? "The card number does not pass Luhn validation." 
+                      : "Use test card 4242 4242 4242 4242 for a success flow.")}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="expiry_month" className="text-sm font-medium text-foreground">Expiration Month</label>
+                  <input
+                    id="expiry_month"
+                    type="number"
+                    min="1"
+                    max="12"
+                    value={form.expiry_month}
+                    onChange={(event) => {
+                      setForm((current) => ({ ...current, expiry_month: event.target.value }));
+                      if (errors.expiry_month) setErrors(e => ({ ...e, expiry_month: "" }));
+                    }}
+                    className={clsx(
+                      "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                      errors.expiry_month ? "border-red-500" : "border-line"
+                    )}
+                    aria-invalid={!!errors.expiry_month}
+                  />
+                  {errors.expiry_month ? <p className="text-sm text-red-500 font-medium">{errors.expiry_month}</p> : null}
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="expiry_year" className="text-sm font-medium text-foreground">Expiration Year</label>
+                  <input
+                    id="expiry_year"
+                    type="number"
+                    min="24"
+                    value={form.expiry_year}
+                    onChange={(event) => {
+                      setForm((current) => ({ ...current, expiry_year: event.target.value }));
+                      if (errors.expiry_year) setErrors(e => ({ ...e, expiry_year: "" }));
+                    }}
+                    className={clsx(
+                      "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                      errors.expiry_year ? "border-red-500" : "border-line"
+                    )}
+                    aria-describedby="expiry-help"
+                    aria-invalid={!expiryLooksValid || !!errors.expiry_year}
+                  />
+                  {errors.expiry_year || !expiryLooksValid ? (
+                    <p id="expiry-help" className="text-sm text-red-500 font-medium">{errors.expiry_year || "Expiration must be in the future."}</p>
+                  ) : null}
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="cvv" className="text-sm font-medium text-foreground">CVV</label>
+                  <input
+                    id="cvv"
+                    value={form.cvv}
+                    onChange={(event) => {
+                      setForm((current) => ({ ...current, cvv: event.target.value }));
+                      if (errors.cvv) setErrors(e => ({ ...e, cvv: "" }));
+                    }}
+                    className={clsx(
+                      "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                      errors.cvv ? "border-red-500" : "border-line"
+                    )}
+                    aria-invalid={!!errors.cvv}
+                  />
+                  {errors.cvv ? <p className="text-sm text-red-500 font-medium">{errors.cvv}</p> : null}
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="billing_zip" className="text-sm font-medium text-foreground">Billing ZIP</label>
+                  <input
+                    id="billing_zip"
+                    value={form.billing_zip}
+                    onChange={(event) => {
+                      setForm((current) => ({ ...current, billing_zip: event.target.value }));
+                      if (errors.billing_zip) setErrors(e => ({ ...e, billing_zip: "" }));
+                    }}
+                    className={clsx(
+                      "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                      errors.billing_zip ? "border-red-500" : "border-line"
+                    )}
+                    aria-invalid={!!errors.billing_zip}
+                  />
+                  {errors.billing_zip ? <p className="text-sm text-red-500 font-medium">{errors.billing_zip}</p> : null}
+                </div>
+              </fieldset>
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 {stripeCardEnabled ? (
                   <label className="space-y-2 md:col-span-2">
@@ -785,7 +980,7 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
             ) : null}
 
             {paymentMethod === "WALLET" ? (
-              <div className="mt-5 rounded-[1.6rem] border border-line bg-white/75 p-5">
+              <div className="mt-5 rounded-[1.6rem] border border-line bg-card/75 p-5">
                 <div className="grid gap-4 md:grid-cols-[220px_1fr]">
                   <div className="space-y-2">
                     <label htmlFor="wallet_provider" className="text-sm font-medium text-foreground">Wallet Provider</label>
@@ -798,7 +993,7 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
                           wallet_provider: event.target.value,
                         }))
                       }
-                      className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                      className="w-full rounded-2xl border border-line bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                     >
                       {walletOptions.map((option) => (
                         <option
@@ -831,16 +1026,30 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
             ) : null}
 
             {paymentMethod === "ACH" ? (
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <fieldset className="mt-5 grid gap-4 md:grid-cols-2">
+                <legend className="sr-only">ACH Details</legend>
                 <div className="space-y-2">
                   <label htmlFor="ach_routing_number" className="text-sm font-medium text-foreground">Routing Number</label>
                   <input
                     id="ach_routing_number"
                     value={form.ach_routing_number}
-                    onChange={(event) =>
+                    onChange={(event) => {
                       setForm((current) => ({
                         ...current,
                         ach_routing_number: event.target.value,
+                      }));
+                      if (errors.ach_routing_number) setErrors(e => ({ ...e, ach_routing_number: "" }));
+                    }}
+                    className={clsx(
+                      "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                      errors.ach_routing_number ? "border-red-500" : "border-line"
+                    )}
+                    aria-describedby="ach-routing-help"
+                    aria-invalid={!achRoutingLooksValid || !!errors.ach_routing_number}
+                  />
+                  <p id="ach-routing-help" className={clsx("text-sm", (!achRoutingLooksValid || errors.ach_routing_number) ? "text-red-500 font-medium" : "hidden")}>
+                    {errors.ach_routing_number || "Routing number checksum is invalid."}
+                  </p>
                       }))
                     }
                     className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
@@ -856,36 +1065,46 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
                   <input
                     id="ach_account_number"
                     value={form.ach_account_number}
-                    onChange={(event) =>
+                    onChange={(event) => {
                       setForm((current) => ({
                         ...current,
                         ach_account_number: event.target.value,
-                      }))
-                    }
-                    className="w-full rounded-2xl border border-line bg-white px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                      }));
+                      if (errors.ach_account_number) setErrors(e => ({ ...e, ach_account_number: "" }));
+                    }}
+                    className={clsx(
+                      "w-full rounded-2xl border bg-card px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                      errors.ach_account_number ? "border-red-500" : "border-line"
+                    )}
+                    aria-invalid={!!errors.ach_account_number}
                   />
+                  {errors.ach_account_number ? <p className="text-sm text-red-500 font-medium">{errors.ach_account_number}</p> : null}
                 </div>
-                <label className="md:col-span-2 flex items-start gap-3 rounded-2xl border border-line bg-white px-4 py-4 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.ach_authorized}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        ach_authorized: event.target.checked,
-                      }))
-                    }
-                    className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                  />
-                  <span className="text-sm leading-7 text-muted">
-                    I authorize this organization to debit my bank account for the amount entered today. ACH payments may take 2-3 business days to settle under NACHA processing timelines.
-                  </span>
-                </label>
-              </div>
+                <div className="md:col-span-2">
+                  <label className={clsx("flex items-start gap-3 rounded-2xl border bg-card px-4 py-4 cursor-pointer", errors.ach_authorized ? "border-red-500" : "border-line")}>
+                    <input
+                      type="checkbox"
+                      checked={form.ach_authorized}
+                      onChange={(event) => {
+                        setForm((current) => ({
+                          ...current,
+                          ach_authorized: event.target.checked,
+                        }));
+                        if (errors.ach_authorized) setErrors(e => ({ ...e, ach_authorized: "" }));
+                      }}
+                      className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    />
+                    <span className="text-sm leading-7 text-muted">
+                      I authorize this organization to debit my bank account for the amount entered today. ACH payments may take 2-3 business days to settle under NACHA processing timelines.
+                    </span>
+                  </label>
+                  {errors.ach_authorized ? <p className="mt-2 text-sm text-red-500 font-medium">{errors.ach_authorized}</p> : null}
+                </div>
+              </fieldset>
             ) : null}
-          </div>
+          </fieldset>
 
-          <div className="mt-8 rounded-[1.6rem] border border-line bg-white/75 p-5">
+          <div className="mt-8 rounded-[1.6rem] border border-line bg-card/75 p-5">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -915,7 +1134,7 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
             type="button"
             onClick={handleSubmit}
             disabled={submitting}
-            className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-brand px-5 py-4 text-sm font-semibold text-white hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
+            className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-brand px-5 py-4 text-sm font-semibold text-brand-foreground hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
           >
             {submitting ? "Processing sandbox payment..." : "Submit Payment"}
           </button>
@@ -931,20 +1150,20 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
               What Happens Next
             </p>
             <div className="mt-5 space-y-4">
-              <div className="rounded-3xl border border-line bg-white/75 p-4">
+              <div className="rounded-3xl border border-line bg-card/75 p-4">
                 <p className="text-sm font-semibold text-foreground">1. Payment confirmation</p>
                 <p className="mt-2 text-sm leading-7 text-muted">
                   Successful card and wallet payments generate an immediate confirmation message and receipt email.
                 </p>
               </div>
-              <div className="rounded-3xl border border-line bg-white/75 p-4">
+              <div className="rounded-3xl border border-line bg-card/75 p-4">
                 <p className="text-sm font-semibold text-foreground">2. GL code tracking</p>
                 <p className="mt-2 text-sm leading-7 text-muted">
                   This page records the following GL codes with each transaction:{" "}
                   {page.gl_codes.map((item) => item.code).join(", ")}.
                 </p>
               </div>
-              <div className="rounded-3xl border border-line bg-white/75 p-4">
+              <div className="rounded-3xl border border-line bg-card/75 p-4">
                 <p className="text-sm font-semibold text-foreground">3. Support follow-up</p>
                 <p className="mt-2 text-sm leading-7 text-muted">
                   Need help? Contact {page.support_email || "the provider team"} after payment if anything looks off.
@@ -972,7 +1191,7 @@ function PublicPaymentPageContent({ slug }: { slug: string }) {
               <p className="font-mono text-xs uppercase tracking-[0.24em] text-muted">
                 Discount Support
               </p>
-              <div className="mt-5 rounded-3xl border border-line bg-white/75 p-4">
+              <div className="mt-5 rounded-3xl border border-line bg-card/75 p-4">
                 <p className="text-sm font-semibold text-foreground">Coupons are enabled</p>
                 <p className="mt-2 text-sm leading-7 text-muted">
                   If your business shared a coupon code with you, enter it before submitting payment to receive the page-specific discount.
@@ -996,7 +1215,7 @@ export function PublicPaymentPage({ slug }: { slug: string }) {
 
 function MethodRow({ title, detail }: { title: string; detail: string }) {
   return (
-    <div className="rounded-3xl border border-line bg-white/75 p-4">
+    <div className="rounded-3xl border border-line bg-card/75 p-4">
       <p className="text-sm font-semibold text-foreground">{title}</p>
       <p className="mt-2 text-sm leading-7 text-muted">{detail}</p>
     </div>

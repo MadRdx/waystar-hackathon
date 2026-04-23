@@ -453,7 +453,7 @@ export function PageBuilder({
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="inline-flex rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex rounded-full bg-brand px-5 py-2 text-sm font-semibold text-brand-foreground hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {saving ? "Saving..." : "Save Page"}
               </button>
@@ -489,7 +489,7 @@ export function PageBuilder({
                 <input
                   value={page.organization_name}
                   onChange={(event) => updateField("organization_name", event.target.value)}
-                  className={clsx("w-full rounded-2xl border bg-white px-4 py-3", fieldErrors.organization_name ? "border-red-400" : "border-line")}
+                  className={clsx("w-full rounded-2xl border bg-card px-4 py-3", fieldErrors.organization_name ? "border-red-400" : "border-line")}
                 />
                 <FieldError message={fieldErrors.organization_name} />
               </label>
@@ -498,7 +498,7 @@ export function PageBuilder({
                 <input
                   value={page.slug}
                   onChange={(event) => updateField("slug", event.target.value)}
-                  className={clsx("w-full rounded-2xl border bg-white px-4 py-3", fieldErrors.slug ? "border-red-400" : "border-line")}
+                  className={clsx("w-full rounded-2xl border bg-card px-4 py-3", fieldErrors.slug ? "border-red-400" : "border-line")}
                 />
                 <FieldError message={fieldErrors.slug} />
               </label>
@@ -507,7 +507,7 @@ export function PageBuilder({
                 <input
                   value={page.title}
                   onChange={(event) => updateField("title", event.target.value)}
-                  className={clsx("w-full rounded-2xl border bg-white px-4 py-3", fieldErrors.title ? "border-red-400" : "border-line")}
+                  className={clsx("w-full rounded-2xl border bg-card px-4 py-3", fieldErrors.title ? "border-red-400" : "border-line")}
                 />
                 <FieldError message={fieldErrors.title} />
               </label>
@@ -517,7 +517,7 @@ export function PageBuilder({
                   rows={3}
                   value={page.subtitle ?? ""}
                   onChange={(event) => updateField("subtitle", event.target.value)}
-                  className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                  className="w-full rounded-2xl border border-line bg-card px-4 py-3"
                 />
               </label>
             </section>
@@ -530,12 +530,12 @@ export function PageBuilder({
                     type="color"
                     value={page.brand_color}
                     onChange={(event) => updateField("brand_color", event.target.value)}
-                    className="h-12 w-16 rounded-2xl border border-line bg-white p-2"
+                    className="h-12 w-16 rounded-2xl border border-line bg-card p-2"
                   />
                   <input
                     value={page.brand_color}
                     onChange={(event) => updateField("brand_color", event.target.value)}
-                    className="flex-1 rounded-2xl border border-line bg-white px-4 py-3"
+                    className="flex-1 rounded-2xl border border-line bg-card px-4 py-3"
                   />
                 </div>
               </label>
@@ -545,7 +545,7 @@ export function PageBuilder({
                   type="email"
                   value={page.support_email ?? ""}
                   onChange={(event) => updateField("support_email", event.target.value)}
-                  className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                  className="w-full rounded-2xl border border-line bg-card px-4 py-3"
                 />
               </label>
               <label className="space-y-2 md:col-span-2">
@@ -553,7 +553,7 @@ export function PageBuilder({
                 <input
                   value={page.logo_url ?? ""}
                   onChange={(event) => updateField("logo_url", event.target.value)}
-                  className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                  className="w-full rounded-2xl border border-line bg-card px-4 py-3"
                 />
               </label>
               <label className="space-y-2 md:col-span-2">
@@ -562,7 +562,7 @@ export function PageBuilder({
                   type="file"
                   accept="image/*"
                   onChange={handleLogoUpload}
-                  className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                  className="w-full rounded-2xl border border-line bg-card px-4 py-3"
                 />
               </label>
             </section>
@@ -574,7 +574,7 @@ export function PageBuilder({
                   rows={3}
                   value={page.header_message ?? ""}
                   onChange={(event) => updateField("header_message", event.target.value)}
-                  className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                  className="w-full rounded-2xl border border-line bg-card px-4 py-3"
                 />
               </label>
               <label className="space-y-2">
@@ -583,12 +583,12 @@ export function PageBuilder({
                   rows={3}
                   value={page.footer_message ?? ""}
                   onChange={(event) => updateField("footer_message", event.target.value)}
-                  className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                  className="w-full rounded-2xl border border-line bg-card px-4 py-3"
                 />
               </label>
             </section>
 
-            <section className="rounded-[1.6rem] border border-line bg-white/70 p-5">
+            <section className="rounded-[1.6rem] border border-line bg-card/70 p-5">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h4 className="text-lg font-semibold text-foreground">Payment Amount Rules</h4>
@@ -614,7 +614,7 @@ export function PageBuilder({
                     onChange={(event) =>
                       updateField("amount_mode", event.target.value as BuilderPage["amount_mode"])
                     }
-                    className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+                    className="w-full rounded-2xl border border-line bg-card px-4 py-3"
                   >
                     <option value="FIXED">Fixed Amount</option>
                     <option value="RANGE">Min / Max Range</option>
@@ -634,7 +634,7 @@ export function PageBuilder({
                       updateField("fixed_amount_cents", moneyInputToCents(event.target.value));
                       clearFieldError("fixed_amount");
                     }}
-                    className={clsx("w-full rounded-2xl border bg-white px-4 py-3", fieldErrors.fixed_amount ? "border-red-400" : "border-line")}
+                    className={clsx("w-full rounded-2xl border bg-card px-4 py-3", fieldErrors.fixed_amount ? "border-red-400" : "border-line")}
                   />
                   <FieldError message={fieldErrors.fixed_amount} />
                 </label>
@@ -651,7 +651,7 @@ export function PageBuilder({
                       updateField("min_amount_cents", moneyInputToCents(event.target.value));
                       clearFieldError("range_amounts");
                     }}
-                    className={clsx("w-full rounded-2xl border bg-white px-4 py-3", fieldErrors.range_amounts ? "border-red-400" : "border-line")}
+                    className={clsx("w-full rounded-2xl border bg-card px-4 py-3", fieldErrors.range_amounts ? "border-red-400" : "border-line")}
                   />
                 </label>
                 <label className="space-y-2">
@@ -667,14 +667,14 @@ export function PageBuilder({
                       updateField("max_amount_cents", moneyInputToCents(event.target.value));
                       clearFieldError("range_amounts");
                     }}
-                    className={clsx("w-full rounded-2xl border bg-white px-4 py-3", fieldErrors.range_amounts ? "border-red-400" : "border-line")}
+                    className={clsx("w-full rounded-2xl border bg-card px-4 py-3", fieldErrors.range_amounts ? "border-red-400" : "border-line")}
                   />
                   <FieldError message={fieldErrors.range_amounts} />
                 </label>
               </div>
             </section>
 
-            <section className="rounded-[1.6rem] border border-line bg-white/70 p-5">
+            <section className="rounded-[1.6rem] border border-line bg-card/70 p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h4 className="text-lg font-semibold text-foreground">Custom Data Fields</h4>
@@ -701,7 +701,7 @@ export function PageBuilder({
 
               <div className="mt-5 space-y-4">
                 {page.custom_fields.map((field, index) => (
-                  <div key={field.id} className="rounded-3xl border border-line bg-white p-4">
+                  <div key={field.id} className="rounded-3xl border border-line bg-card p-4">
                     <div className="grid gap-4 lg:grid-cols-12">
                       <label className="space-y-2 lg:col-span-4">
                         <span className="text-sm font-medium text-foreground">Label {requiredStar}</span>
@@ -819,7 +819,7 @@ export function PageBuilder({
               </div>
             </section>
 
-            <section className="rounded-[1.6rem] border border-line bg-white/70 p-5">
+            <section className="rounded-[1.6rem] border border-line bg-card/70 p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h4 className="text-lg font-semibold text-foreground">GL Codes {requiredStar}</h4>
@@ -845,7 +845,7 @@ export function PageBuilder({
 
               <div className="mt-5 space-y-4">
                 {page.gl_codes.map((glCode, index) => (
-                  <div key={glCode.id} className="grid gap-4 rounded-3xl border border-line bg-white p-4 lg:grid-cols-[1fr_1fr_auto]">
+                  <div key={glCode.id} className="grid gap-4 rounded-3xl border border-line bg-card p-4 lg:grid-cols-[1fr_1fr_auto]">
                     <label className="space-y-2">
                       <span className="text-sm font-medium text-foreground">Code {requiredStar}</span>
                       <input
@@ -902,7 +902,7 @@ export function PageBuilder({
               </div>
             </section>
 
-            <section className="rounded-[1.6rem] border border-line bg-white/70 p-5">
+            <section className="rounded-[1.6rem] border border-line bg-card/70 p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h4 className="text-lg font-semibold text-foreground">Coupons</h4>
@@ -965,7 +965,7 @@ export function PageBuilder({
                       return (
                         <div
                           key={coupon.id}
-                          className="rounded-3xl border border-line bg-white p-4"
+                          className="rounded-3xl border border-line bg-card p-4"
                         >
                           <div className="grid gap-4 lg:grid-cols-12">
                             <label className="space-y-2 lg:col-span-3">
@@ -1109,7 +1109,7 @@ export function PageBuilder({
               )}
             </section>
 
-            <section className="rounded-[1.6rem] border border-line bg-white/70 p-5">
+            <section className="rounded-[1.6rem] border border-line bg-card/70 p-5">
               <h4 className="text-lg font-semibold text-foreground">
                 Confirmation Email Template
               </h4>
@@ -1123,7 +1123,7 @@ export function PageBuilder({
                 rows={8}
                 value={page.email_template ?? ""}
                 onChange={(event) => updateField("email_template", event.target.value)}
-                className="mt-4 w-full rounded-2xl border border-line bg-white px-4 py-3 font-mono text-sm text-muted"
+                className="mt-4 w-full rounded-2xl border border-line bg-card px-4 py-3 font-mono text-sm text-muted"
               />
             </section>
           </div>
@@ -1134,7 +1134,7 @@ export function PageBuilder({
             <p className="font-mono text-xs uppercase tracking-[0.24em] text-muted">
               Live Preview
             </p>
-            <div className="mt-5 overflow-hidden rounded-[1.6rem] border border-line bg-white">
+            <div className="mt-5 overflow-hidden rounded-[1.6rem] border border-line bg-card">
               <div
                 className="h-2 w-full"
                 style={{ backgroundColor: page.brand_color || "#0F766E" }}
@@ -1207,7 +1207,7 @@ export function PageBuilder({
 
                 <button
                   type="button"
-                  className="inline-flex w-full items-center justify-center rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white"
+                  className="inline-flex w-full items-center justify-center rounded-full bg-brand px-5 py-3 text-sm font-semibold text-brand-foreground"
                 >
                   Submit Sandbox Payment
                 </button>

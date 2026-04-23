@@ -67,7 +67,7 @@ export function GoogleCallbackContent() {
           <p className="text-sm leading-7 text-red-600">{error}</p>
           <a
             href="/"
-            className="inline-flex rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white hover:bg-brand-strong"
+            className="inline-flex rounded-full bg-brand px-5 py-3 text-sm font-semibold text-brand-foreground hover:bg-brand-strong"
           >
             Back to Home
           </a>

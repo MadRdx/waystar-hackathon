@@ -8,7 +8,7 @@ from app.database import get_db
 from app.emailer import deliver_email
 from app.schemas import CouponType, PaymentMethod, PaymentSubmissionPayload, StripeIntentPayload
 from app.security import get_optional_customer
-from app.serializers import serialize_transaction
+from app.serializers import serialize_page, serialize_transaction
 from app.utils import (
     currency,
     expiry_is_valid,
@@ -632,6 +632,11 @@ async def get_public_transaction(public_id: str) -> dict:
     return {"item": serialize_transaction(transaction)}
 
 
+@router.get("/payment-pages")
+async def list_public_payment_pages() -> dict:
+    db = get_db()
+    pages = await db.payment_pages.find({"is_active": True}).sort("updated_at", -1).to_list(length=100)
+    return {"items": [serialize_page(page, public=True) for page in pages]}
 @router.post("/stripe/webhook")
 async def stripe_webhook(
     request: Request,

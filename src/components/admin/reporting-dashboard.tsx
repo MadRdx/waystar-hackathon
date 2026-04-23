@@ -108,7 +108,7 @@ export function ReportingDashboard() {
           <button
             type="button"
             onClick={() => downloadTransactionsCsv(buildQueryString(filters))}
-            className="inline-flex rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white hover:bg-brand-strong"
+            className="inline-flex rounded-full bg-brand px-5 py-3 text-sm font-semibold text-brand-foreground hover:bg-brand-strong"
           >
             Export Current View
           </button>
@@ -120,7 +120,7 @@ export function ReportingDashboard() {
             <select
               value={filters.page_id}
               onChange={(event) => updateFilters({ page_id: event.target.value })}
-              className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+              className="w-full rounded-2xl border border-line bg-card px-4 py-3"
             >
               <option value="">All pages</option>
               {pages.map((page) => (
@@ -136,7 +136,7 @@ export function ReportingDashboard() {
             <select
               value={filters.status}
               onChange={(event) => updateFilters({ status: event.target.value })}
-              className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+              className="w-full rounded-2xl border border-line bg-card px-4 py-3"
             >
               <option value="">All statuses</option>
               <option value="SUCCESS">Success</option>
@@ -152,7 +152,7 @@ export function ReportingDashboard() {
               type="date"
               value={filters.date_from}
               onChange={(event) => updateFilters({ date_from: event.target.value })}
-              className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+              className="w-full rounded-2xl border border-line bg-card px-4 py-3"
             />
           </label>
 
@@ -162,7 +162,7 @@ export function ReportingDashboard() {
               type="date"
               value={filters.date_to}
               onChange={(event) => updateFilters({ date_to: event.target.value })}
-              className="w-full rounded-2xl border border-line bg-white px-4 py-3"
+              className="w-full rounded-2xl border border-line bg-card px-4 py-3"
             />
           </label>
         </div>
@@ -286,7 +286,7 @@ export function ReportingDashboard() {
             <div className="mt-5 space-y-3">
               {Object.entries(summary?.gl_breakdown ?? {}).length ? (
                 Object.entries(summary?.gl_breakdown ?? {}).map(([code, value]) => (
-                  <div key={code} className="rounded-3xl border border-line bg-white/75 p-4">
+                  <div key={code} className="rounded-3xl border border-line bg-card/75 p-4">
                     <p className="text-sm font-semibold text-foreground">{code}</p>
                     <p className="mt-2 text-lg font-semibold text-brand">
                       {formatCurrency(value)}
@@ -304,7 +304,7 @@ export function ReportingDashboard() {
             <div className="mt-5 space-y-3">
               {logs.length ? (
                 logs.map((log) => (
-                  <div key={log.id} className="rounded-3xl border border-line bg-white/75 p-4">
+                  <div key={log.id} className="rounded-3xl border border-line bg-card/75 p-4">
                     <p className="text-sm font-semibold text-foreground">{log.subject}</p>
                     <p className="mt-1 text-sm text-muted">{log.to_email}</p>
                     <p className="mt-2 text-xs uppercase tracking-[0.2em] text-muted">
