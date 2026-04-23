@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { loginCustomer, registerCustomer, setStoredSession } from "@/lib/api";
+import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
 
 export function CustomerAuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
@@ -184,6 +185,10 @@ export function CustomerAuthForm({ mode }: { mode: "login" | "register" }) {
                   : "Continue to Customer Dashboard"}
             </button>
           </form>
+          <GoogleOAuthButton
+            expectedRole="CUSTOMER"
+            label={isRegister ? "Sign up with Google" : "Sign in with Google"}
+          />
         </section>
       </div>
     </main>

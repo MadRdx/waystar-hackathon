@@ -54,6 +54,12 @@ class CustomerRegisterPayload(BaseModel):
     billing_zip: str | None = Field(default=None, max_length=10)
 
 
+class GoogleOAuthPayload(BaseModel):
+    code: str = Field(min_length=1, max_length=2048)
+    redirect_uri: str = Field(min_length=1, max_length=512)
+    expected_role: UserRole | None = None
+
+
 class CustomerProfilePayload(BaseModel):
     payer_name: str = Field(min_length=2, max_length=80)
     billing_zip: str | None = Field(default=None, max_length=10)

@@ -212,6 +212,21 @@ export async function getCurrentCustomer() {
   });
 }
 
+export async function loginWithGoogle(
+  code: string,
+  redirectUri: string,
+  expectedRole?: string,
+) {
+  return apiRequest<{ token: string; user: AdminSession["user"] | CustomerSession["user"] }>(
+    "/auth/oauth/google",
+    {
+      method: "POST",
+      auth: false,
+      body: { code, redirect_uri: redirectUri, expected_role: expectedRole },
+    },
+  );
+}
+
 export async function getCustomerDashboard() {
   return apiRequest<{ item: CustomerDashboard }>("/customers/me/dashboard", {
     sessionKind: "customer",

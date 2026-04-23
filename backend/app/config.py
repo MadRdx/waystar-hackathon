@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_pass: str | None = None
     smtp_from_email: str = "Quick Payment Pages <no-reply@quickpay.local>"
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
 
     @field_validator("allowed_origins")
     @classmethod

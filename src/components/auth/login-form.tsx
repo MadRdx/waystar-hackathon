@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { loginPortal, setStoredSession } from "@/lib/api";
 import type { PortalRole } from "@/lib/types";
+import { GoogleOAuthButton } from "@/components/auth/google-oauth-button";
 
 export function LoginForm({
   role = "ADMIN",
@@ -155,6 +156,7 @@ export function LoginForm({
                 : `Continue to ${isBusiness ? "Business" : "Admin"} Portal`}
             </button>
           </form>
+          <GoogleOAuthButton expectedRole={role} />
         </section>
       </div>
     </main>
