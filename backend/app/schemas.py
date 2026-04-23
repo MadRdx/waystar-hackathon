@@ -28,6 +28,7 @@ class TransactionStatus(str, Enum):
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
     PENDING = "PENDING"
+    REFUNDED = "REFUNDED"
 
 
 class UserRole(str, Enum):
@@ -192,9 +193,17 @@ class PaymentSubmissionPayload(BaseModel):
     remember_payer: bool = False
     coupon_code: str | None = Field(default=None, max_length=32)
     custom_field_values: dict[str, Any] = Field(default_factory=dict)
+    stripe_payment_intent_id: str | None = Field(default=None, max_length=128)
 
 
 class PaymentResultPayload(BaseModel):
     public_id: str
     status: TransactionStatus
     message: str
+
+
+class StripeIntentPayload(BaseModel):
+    amount_cents: int | None = None
+    coupon_code: str | None = Field(default=None, max_length=32)
+    payer_name: str = Field(min_length=2, max_length=80)
+    payer_email: EmailStr

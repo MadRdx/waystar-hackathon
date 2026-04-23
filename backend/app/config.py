@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     smtp_from_email: str = "Quick Payment Pages <no-reply@quickpay.local>"
     google_client_id: str | None = None
     google_client_secret: str | None = None
+    stripe_secret_key: str | None = None
+    stripe_currency: str = "usd"
+    stripe_webhook_secret: str | None = None
 
     @field_validator("allowed_origins")
     @classmethod
@@ -39,6 +42,10 @@ class Settings(BaseSettings):
     @property
     def smtp_enabled(self) -> bool:
         return bool(self.smtp_host and self.smtp_from_email)
+
+    @property
+    def stripe_enabled(self) -> bool:
+        return bool(self.stripe_secret_key)
 
 
 @lru_cache

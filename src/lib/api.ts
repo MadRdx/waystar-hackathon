@@ -286,6 +286,32 @@ export async function submitPayment(slug: string, payload: Record<string, unknow
   );
 }
 
+export async function createStripePaymentIntent(
+  slug: string,
+  payload: {
+    payer_name: string;
+    payer_email: string;
+    amount_cents?: number;
+    coupon_code?: string;
+  },
+) {
+  return apiRequest<{
+    item: {
+      payment_intent_id: string;
+      client_secret: string;
+      amount_cents: number;
+      original_amount_cents: number;
+      discount_amount_cents: number;
+      coupon_code?: string | null;
+      coupon_description?: string | null;
+    };
+  }>(`/public/payment-pages/${slug}/stripe/intent`, {
+    method: "POST",
+    auth: false,
+    body: payload,
+  });
+}
+
 export async function getPublicTransaction(publicId: string) {
   return apiRequest<{ item: Transaction }>(`/public/transactions/${publicId}`, {
     auth: false,

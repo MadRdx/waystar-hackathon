@@ -139,7 +139,11 @@ async def list_payment_pages(current_user: dict = Depends(get_current_portal_use
                 "transaction_count": {"$sum": 1},
                 "total_amount_cents": {
                     "$sum": {
-                        "$cond": [{"$eq": ["$status", "SUCCESS"]}, "$amount_cents", 0]
+                        "$cond": [
+                            {"$in": ["$status", ["SUCCESS", "REFUNDED"]]},
+                            {"$subtract": ["$amount_cents", {"$ifNull": ["$refunded_amount_cents", 0]}]},
+                            0,
+                        ]
                     }
                 },
             }

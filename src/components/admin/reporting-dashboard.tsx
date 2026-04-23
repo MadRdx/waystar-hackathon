@@ -142,6 +142,7 @@ export function ReportingDashboard() {
               <option value="SUCCESS">Success</option>
               <option value="PENDING">Pending</option>
               <option value="FAILED">Failed</option>
+              <option value="REFUNDED">Refunded</option>
             </select>
           </label>
 
@@ -258,6 +259,11 @@ export function ReportingDashboard() {
                       {transaction.discount_amount_cents > 0 ? (
                         <div className="text-xs text-muted">
                           from {transaction.original_amount_display}
+                        </div>
+                      ) : null}
+                      {transaction.refunded_amount_cents > 0 ? (
+                        <div className="text-xs text-red-600">
+                          refunded {transaction.refunded_amount_display}
                         </div>
                       ) : null}
                     </td>

@@ -69,6 +69,7 @@ def serialize_page_summary(page: dict[str, Any], metrics: dict[str, Any]) -> dic
 def serialize_transaction(transaction: dict[str, Any]) -> dict[str, Any]:
     original_amount = transaction.get("original_amount_cents", transaction["amount_cents"])
     discount_amount = transaction.get("discount_amount_cents", 0)
+    refunded_amount = transaction.get("refunded_amount_cents", 0)
     return {
         "id": str(transaction["_id"]),
         "public_id": transaction["public_id"],
@@ -86,6 +87,8 @@ def serialize_transaction(transaction: dict[str, Any]) -> dict[str, Any]:
         "original_amount_display": currency(original_amount),
         "discount_amount_cents": discount_amount,
         "discount_amount_display": currency(discount_amount),
+        "refunded_amount_cents": refunded_amount,
+        "refunded_amount_display": currency(refunded_amount),
         "coupon_code": transaction.get("coupon_code"),
         "coupon_description": transaction.get("coupon_description"),
         "payment_method": transaction["payment_method"],
@@ -100,6 +103,7 @@ def serialize_transaction(transaction: dict[str, Any]) -> dict[str, Any]:
         "field_responses": transaction.get("field_responses", []),
         "created_at": serialize_datetime(transaction.get("created_at")),
         "updated_at": serialize_datetime(transaction.get("updated_at")),
+        "refunded_at": serialize_datetime(transaction.get("refunded_at")),
     }
 
 
